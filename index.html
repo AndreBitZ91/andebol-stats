@@ -53,6 +53,11 @@
         .opponent-7v6-active:hover {
             background-color: #c2410c; /* orange-700 */
         }
+        .possession-btn.active {
+            background-color: #f97316; /* orange-500 */
+            color: white;
+            border-color: #fb923c; /* orange-400 */
+        }
         .tab-btn.active {
             color: #60a5fa; /* blue-400 */
             border-color: #3b82f6; /* blue-600 */
@@ -83,6 +88,14 @@
             font-weight: bold;
             fill: white;
             text-anchor: middle;
+        }
+        .goal-zone-rect {
+            cursor: pointer;
+            stroke: rgba(255, 255, 255, 0.3);
+            stroke-width: 1;
+        }
+        .goal-zone-rect:hover {
+            fill: rgba(255, 255, 255, 0.2);
         }
         /* Estilos para os gráficos D3 */
         .chart-container .bar {
@@ -184,6 +197,9 @@
                     <button id="timeoutBtnA" data-team="A" class="btn-feedback bg-blue-600 hover:bg-blue-700 text-white font-semibold py-2 px-4 rounded-lg w-full">Time-out (<span id="timeout-count-A">3</span>)</button>
                     <button id="timeoutBtnB" data-team="B" class="btn-feedback bg-orange-600 hover:bg-orange-700 text-white font-semibold py-2 px-4 rounded-lg w-full">Time-out (<span id="timeout-count-B">3</span>)</button>
                 </div>
+                 <div class="mt-4">
+                    <button id="undoBtn" class="btn-feedback bg-gray-600 hover:bg-gray-500 text-white font-bold py-3 px-4 rounded-lg w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled>Desfazer Última Ação</button>
+                </div>
             </div>
 
             <!-- Situação de Jogo -->
@@ -256,46 +272,62 @@
                     <!-- JS will populate this content -->
                 </div>
                 <div class="mt-8 pt-4 border-t border-gray-700">
-                     <div class="mb-4">
-                         <label for="team-situation-select" class="block text-sm font-medium text-gray-300 mb-2">Filtrar por Situação de Jogo:</label>
-                         <select id="team-situation-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                             <option value="all">Todos</option>
-                             <option value="equality">Igualdade</option>
-                             <option value="superiority">Superioridade</option>
-                             <option value="inferiority">Inferioridade</option>
-                             <option value="seven_vs_six">7x6</option>
-                             <option value="passive">Passivo</option>
-                         </select>
-                       </div>
-                     <div class="w-full max-w-2xl mx-auto aspect-video">
-                         <svg id="team-handball-court-svg" viewBox="0 0 400 250" class="w-full h-full">
-                             <rect width="400" height="250" fill="#1f2937"></rect>
-                             <!-- Goal -->
-                             <rect x="185" y="240" width="30" height="10" fill="none" stroke="white" stroke-width="1"></rect>
-                             <!-- 6m line -->
-                             <path d="M 140 240 A 60 60 0 0 1 260 240" fill="none" stroke="white" stroke-width="1"></path>
-                             <line x1="140" y1="240" x2="140" y2="180" stroke="white" stroke-width="1"></line>
-                             <line x1="260" y1="240" x2="260" y2="180" stroke="white" stroke-width="1"></line>
-                             <!-- 9m line -->
-                             <path d="M 110 240 A 90 90 0 0 1 290 240" fill="none" stroke="white" stroke-width="1" stroke-dasharray="4"></path>
-                             <line x1="110" y1="240" x2="110" y2="150" stroke="white" stroke-width="1" stroke-dasharray="4"></line>
-                             <line x1="290" y1="240" x2="290" y2="150" stroke="white" stroke-width="1" stroke-dasharray="4"></line>
-                             <!-- 7m line -->
-                             <line x1="195" y1="170" x2="205" y2="170" stroke="white" stroke-width="1"></line>
-                             <!-- Center line -->
-                             <line x1="200" y1="250" x2="200" y2="0" stroke="white" stroke-width="0.5" stroke-dasharray="2"></line>
-                             
-                             <!-- Stats text placeholders -->
-                             <text id="team-zone-1-stats" x="65" y="210" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-2-stats" x="145" y="210" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-3-stats" x="200" y="210" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-4-stats" x="255" y="210" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-5-stats" x="335" y="210" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-6-stats" x="130" y="120" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-7-stats" x="200" y="120" class="court-stats-text">0% (0)</text>
-                             <text id="team-zone-8-stats" x="270" y="120" class="court-stats-text">0% (0)</text>
-                         </svg>
-                       </div>
+                    <div class="mb-4">
+                        <label for="team-situation-select" class="block text-sm font-medium text-gray-300 mb-2">Filtrar por Situação de Jogo:</label>
+                        <select id="team-situation-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                            <option value="all">Todos</option>
+                            <option value="equality">Igualdade</option>
+                            <option value="superiority">Superioridade</option>
+                            <option value="inferiority">Inferioridade</option>
+                            <option value="seven_vs_six">7x6</option>
+                            <option value="passive">Passivo</option>
+                        </select>
+                    </div>
+
+                    <div class="grid grid-cols-1 xl:grid-cols-2 gap-8">
+                        <div class="w-full max-w-2xl mx-auto aspect-video">
+                            <h4 class="font-semibold text-center text-gray-300 mb-2">Zonas de Remate (Clique para filtrar)</h4>
+                            <svg id="team-handball-court-svg" viewBox="0 0 400 250" class="w-full h-full">
+                                <rect width="400" height="250" fill="#1f2937"></rect>
+                                <!-- Goal -->
+                                <rect x="185" y="240" width="30" height="10" fill="none" stroke="white" stroke-width="1"></rect>
+                                <!-- 6m line -->
+                                <path d="M 140 240 A 60 60 0 0 1 260 240" fill="none" stroke="white" stroke-width="1"></path>
+                                <line x1="140" y1="240" x2="140" y2="180" stroke="white" stroke-width="1"></line>
+                                <line x1="260" y1="240" x2="260" y2="180" stroke="white" stroke-width="1"></line>
+                                <!-- 9m line -->
+                                <path d="M 110 240 A 90 90 0 0 1 290 240" fill="none" stroke="white" stroke-width="1" stroke-dasharray="4"></path>
+                                <line x1="110" y1="240" x2="110" y2="150" stroke="white" stroke-width="1" stroke-dasharray="4"></line>
+                                <line x1="290" y1="240" x2="290" y2="150" stroke="white" stroke-width="1" stroke-dasharray="4"></line>
+                                <!-- 7m line -->
+                                <line x1="195" y1="170" x2="205" y2="170" stroke="white" stroke-width="1"></line>
+                                <!-- Center line -->
+                                <line x1="200" y1="250" x2="200" y2="0" stroke="white" stroke-width="0.5" stroke-dasharray="2"></line>
+                                
+                                <!-- Stats text placeholders -->
+                                <text id="team-zone-1-stats" x="65" y="210" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-2-stats" x="145" y="210" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-3-stats" x="200" y="210" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-4-stats" x="255" y="210" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-5-stats" x="335" y="210" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-6-stats" x="130" y="120" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-7-stats" x="200" y="120" class="court-stats-text">0% (0)</text>
+                                <text id="team-zone-8-stats" x="270" y="120" class="court-stats-text">0% (0)</text>
+                            </svg>
+                        </div>
+                        <div class="w-full max-w-lg mx-auto aspect-[3/2]">
+                            <h4 id="goal-map-title" class="font-semibold text-center text-gray-300 mb-2">Mapa de Baliza (Todos os Remates)</h4>
+                            <svg id="team-goal-map-svg" viewBox="0 0 300 220" class="w-full h-full bg-gray-700 border-2 border-white">
+                                <rect x="0" y="0" width="300" height="200" fill="none" stroke="white" stroke-width="4"/>
+                                <!-- Grid lines for visualization -->
+                                <line x1="100" y1="0" x2="100" y2="200" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                                <line x1="200" y1="0" x2="200" y2="200" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                                <line x1="0" y1="66.67" x2="300" y2="66.67" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                                <line x1="0" y1="133.33" x2="300" y2="133.33" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                                <!-- Shot markers will be added here by D3 -->
+                            </svg>
+                        </div>
+                    </div>
                 </div>
             </div>
 
@@ -455,7 +487,7 @@
                 </div>
             </div>
 
-            <div>
+            <div id="shot-outcome-wrapper">
                 <h4 id="shot-outcome-title" class="font-semibold text-gray-400 mb-3">2. Resultado do Remate</h4>
                 <div id="shot-outcome-container" class="grid grid-cols-2 gap-4">
                     <button data-outcome="goal" class="shot-outcome-btn btn-feedback bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>Golo</button>
@@ -464,6 +496,32 @@
                     <button data-outcome="post" class="shot-outcome-btn btn-feedback bg-yellow-700 hover:bg-yellow-800 text-white font-bold py-3 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed" disabled>Poste</button>
                 </div>
             </div>
+
+            <div id="shot-goal-container" class="hidden">
+                 <h4 class="font-semibold text-gray-400 mb-3">3. Local na Baliza</h4>
+                 <div class="flex justify-center">
+                    <svg id="shot-goal-svg" viewBox="0 0 300 220" class="w-full max-w-sm bg-gray-700 border-2 border-white">
+                        <!-- Goal Posts -->
+                        <rect x="0" y="0" width="300" height="200" fill="none" stroke="white" stroke-width="4"/>
+                        <!-- Clickable Zones (3x3 Grid) -->
+                        <rect class="goal-zone-rect" data-goal-zone="tl" x="0" y="0" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="tc" x="100" y="0" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="tr" x="200" y="0" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="ml" x="0" y="66.67" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="mc" x="100" y="66.67" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="mr" x="200" y="66.67" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="bl" x="0" y="133.33" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="bc" x="100" y="133.33" width="100" height="66.67" fill-opacity="0"/>
+                        <rect class="goal-zone-rect" data-goal-zone="br" x="200" y="133.33" width="100" height="66.67" fill-opacity="0"/>
+                         <!-- Grid lines for visualization -->
+                        <line x1="100" y1="0" x2="100" y2="200" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                        <line x1="200" y1="0" x2="200" y2="200" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                        <line x1="0" y1="66.67" x2="300" y2="66.67" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                        <line x1="0" y1="133.33" x2="300" y2="133.33" stroke="white" stroke-width="1" stroke-dasharray="2"/>
+                    </svg>
+                 </div>
+            </div>
+
             <button id="closeShotModalBtn" class="mt-6 text-gray-400 hover:text-white">Cancelar</button>
         </div>
     </div>
@@ -634,6 +692,7 @@
             let currentPersonForAction = null;
             let selectedShotType = null;
             let selectedShotZone = null;
+            let shotOutcomeForGoalSelection = null;
             let isGkShot = false;
             let actionAfterPlayerRemoval = null;
             let isPassivePlay = false;
@@ -641,6 +700,7 @@
             let gameSituationLog = [];
             let lastKnownSituations = { A: 'equality', B: 'equality' };
             let isOpponent7v6 = false;
+            let actionHistory = [];
 
             // DOM Elements
             const welcomeModal = document.getElementById('welcomeModal');
@@ -666,6 +726,7 @@
             const opponentTechFaultBtn = document.getElementById('opponentTechFaultBtn');
             const exportExcelBtn = document.getElementById('exportExcelBtn');
             const exportPdfBtn = document.getElementById('exportPdfBtn');
+            const undoBtn = document.getElementById('undoBtn');
             
             // Modals
             const alertModal = document.getElementById('alertModal'), alertText = document.getElementById('alertText'), alertOkBtn = document.getElementById('alertOk');
@@ -679,6 +740,59 @@
             let confirmCallback = null;
 
             // --- ALL FUNCTION DEFINITIONS ---
+            
+            // --- Action History / Undo Logic ---
+            const saveActionState = () => {
+                const currentState = {
+                    gameData: JSON.parse(JSON.stringify(gameData)), // Deep copy
+                    totalSeconds,
+                    currentGamePart,
+                    isPassivePlay,
+                    isOpponent7v6,
+                    gameEvents: JSON.parse(JSON.stringify(gameEvents)),
+                    gameSituationLog: JSON.parse(JSON.stringify(gameSituationLog)),
+                    lastKnownSituations: JSON.parse(JSON.stringify(lastKnownSituations)),
+                };
+                actionHistory.push(currentState);
+                undoBtn.disabled = false;
+                undoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+            };
+
+            const handleUndo = () => {
+                if (actionHistory.length === 0) return;
+
+                const lastState = actionHistory.pop();
+                
+                gameData = lastState.gameData;
+                totalSeconds = lastState.totalSeconds;
+                currentGamePart = lastState.currentGamePart;
+                isPassivePlay = lastState.isPassivePlay;
+                isOpponent7v6 = lastState.isOpponent7v6;
+                gameEvents = lastState.gameEvents;
+                gameSituationLog = lastState.gameSituationLog;
+                lastKnownSituations = lastState.lastKnownSituations;
+
+                // Full UI Refresh
+                timerDisplay.textContent = formatTimeValue(totalSeconds);
+                gamePartDisplay.textContent = `${currentGamePart}ª Parte`;
+                
+                passivePlayBtn.classList.toggle('passive-active', isPassivePlay);
+                passivePlayBtn.classList.toggle('bg-gray-700', !isPassivePlay);
+
+                opponent7v6Btn.classList.toggle('opponent-7v6-active', isOpponent7v6);
+                opponent7v6Btn.classList.toggle('bg-gray-700', !isOpponent7v6);
+                
+                updateUI();
+                renderPlayers();
+                renderOfficials();
+                renderTimeline();
+
+                if (actionHistory.length === 0) {
+                    undoBtn.disabled = true;
+                    undoBtn.classList.add('opacity-50', 'cursor-not-allowed');
+                }
+                saveGameState(); // Save the new, reverted state
+            };
 
             // --- Scoring Calculation ---
             const calculateFinalScore = (player) => {
@@ -1014,14 +1128,14 @@
                         startBtn.classList.add('opacity-50', 'cursor-not-allowed');
                     }
                 } else {
-                     const expectedPlayers = (gameData.A.isTeamSuspended || gameData.A.players.some(p => p.isSuspended)) ? 6 : 7;
-                     if(onCourtPlayersA <= expectedPlayers) {
-                         playerCountADisplay.classList.remove('text-red-400');
-                         playerCountADisplay.classList.add('text-green-400');
-                     } else {
-                         playerCountADisplay.classList.remove('text-green-400');
-                         playerCountADisplay.classList.add('text-red-400');
-                     }
+                      const expectedPlayers = (gameData.A.isTeamSuspended || gameData.A.players.some(p => p.isSuspended)) ? 6 : 7;
+                      if(onCourtPlayersA <= expectedPlayers) {
+                          playerCountADisplay.classList.remove('text-red-400');
+                          playerCountADisplay.classList.add('text-green-400');
+                      } else {
+                          playerCountADisplay.classList.remove('text-green-400');
+                          playerCountADisplay.classList.add('text-red-400');
+                      }
                 }
             };
 
@@ -1193,6 +1307,7 @@
 
             // Modals Logic
             const shotZoneRules = { 'Ponta': [1, 5], 'Pivot': [2, 3, 4], 'Penetração': [2, 3, 4], '6mt': [2, 3, 4], '9mt': [6, 7, 8], '7mt': [], '1ª Vaga': [1, 2, 3, 4, 5, 6, 7, 8], '2ª Vaga': [1, 2, 3, 4, 5, 6, 7, 8], '3ª Vaga': [1, 2, 3, 4, 5, 6, 7, 8], 'Após Golo': [1, 2, 3, 4, 5, 6, 7, 8], 'Baliza Aberta': [] };
+            
             const openShotModal = (player, mode) => { 
                 currentPersonForAction = player; 
                 document.getElementById('shotPlayerName').textContent = `#${player.Numero} ${player.Nome}`; 
@@ -1212,7 +1327,86 @@
                 }
                 shotModal.classList.remove('hidden'); 
             };
-            const closeShotModal = () => { shotModal.classList.add('hidden'); currentPersonForAction = null; selectedShotType = null; selectedShotZone = null; isGkShot = false; document.querySelectorAll('.shot-type-btn.selected, .shot-zone-btn.selected').forEach(btn => btn.classList.remove('selected')); document.querySelectorAll('.shot-outcome-btn').forEach(btn => btn.disabled = true); document.getElementById('shot-zone-container').classList.add('hidden'); };
+            const closeShotModal = () => { 
+                shotModal.classList.add('hidden'); 
+                currentPersonForAction = null; 
+                selectedShotType = null; 
+                selectedShotZone = null; 
+                isGkShot = false; 
+                shotOutcomeForGoalSelection = null;
+                document.querySelectorAll('.shot-type-btn.selected, .shot-zone-btn.selected').forEach(btn => btn.classList.remove('selected')); 
+                document.querySelectorAll('.shot-outcome-btn').forEach(btn => btn.disabled = true); 
+                document.getElementById('shot-zone-container').classList.add('hidden'); 
+                // Reset visibility for next time
+                document.getElementById('shot-goal-container').classList.add('hidden');
+                document.getElementById('shot-outcome-wrapper').classList.remove('hidden');
+            };
+
+            const processShot = (shotData) => {
+                let points = 0;
+                if (isGkShot) { 
+                    currentPersonForAction.shotsFaced.push(shotData);
+                    points = pointSystem.goalkeeper.shot_faced[shotData.type]?.[shotData.outcome] || 0;
+                    if (shotData.outcome === 'goal') { 
+                        updatePlusMinusOnGoal(false); 
+                    }
+                    switch(shotData.outcome) {
+                        case 'goal': 
+                            gameData.A.stats.gkGoalsAgainst++; 
+                            gameData.B.stats.goals++; 
+                            if (['1ª Vaga', '2ª Vaga', '3ª Vaga', 'Após Golo'].includes(shotData.type)) { 
+                                gameData.B.stats.transition_goals++; 
+                            } 
+                            logEvent('B', 'goal', 'Adversário', totalSeconds, `Golo Sofrido: ${currentPersonForAction.Nome}`); 
+                            break;
+                        case 'saved': 
+                            gameData.A.stats.gkSaves++; 
+                            gameData.B.stats.savedShots++; 
+                            logEvent('A', 'save', currentPersonForAction.Nome, totalSeconds, `Defesa de GR: ${currentPersonForAction.Nome}`); 
+                            break;
+                        case 'miss': 
+                        case 'post': 
+                            gameData.B.stats.misses++; 
+                            logEvent('B', 'miss', 'Adversário', totalSeconds, `Remate Fora/Poste (Adv)`); 
+                            break;
+                    }
+                } else { 
+                    currentPersonForAction.shots.push(shotData);
+                    const pointKey = shotData.outcome === 'goal' ? 'goal' : 'fail';
+                    const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player';
+                    if (playerType === 'goalkeeper') { 
+                        points = pointSystem.goalkeeper.shot[pointKey] || 0; 
+                    } else { 
+                        points = pointSystem.field_player.shot[shotData.type]?.[pointKey] || 0; 
+                    }
+                    if (shotData.outcome === 'goal') { 
+                        updatePlusMinusOnGoal(true); 
+                    }
+                    switch(shotData.outcome) {
+                        case 'goal': 
+                            gameData.A.stats.goals++; 
+                            logEvent('A', 'goal', currentPersonForAction.Nome, totalSeconds, `Golo: ${currentPersonForAction.Nome}`); 
+                            break;
+                        case 'saved': 
+                            gameData.A.stats.savedShots++; 
+                            if (shotData.type !== 'Baliza Aberta') { 
+                                gameData.B.stats.gkSaves++; 
+                            } 
+                            logEvent('B', 'save', 'GR Adversário', totalSeconds, `Remate de ${currentPersonForAction.Nome} defendido`); 
+                            break;
+                        case 'miss': 
+                        case 'post': 
+                            gameData.A.stats.misses++; 
+                            logEvent('A', 'miss', currentPersonForAction.Nome, totalSeconds, `Remate Fora/Poste: ${currentPersonForAction.Nome}`); 
+                            break;
+                    }
+                }
+                updatePlayerScore(currentPersonForAction, points);
+                updateUI();
+                renderPlayers();
+                deactivatePassivePlay();
+                deactivateOpponent7v6();
+            };
             
             const openNegativeActionModal = (player) => { currentPersonForAction = player; document.getElementById('negativeActionPlayerName').textContent = `#${player.Numero} ${player.Nome}`; negativeActionModal.classList.remove('hidden'); };
             const closeNegativeActionModal = () => { negativeActionModal.classList.add('hidden'); currentPersonForAction = null; };
@@ -1319,6 +1513,7 @@
 
             // Timeout Logic
             const handleTimeout = (team) => {
+                saveActionState();
                 const teamTimeouts = gameData[team].timeouts;
                 
                 if (teamTimeouts.total <= 0) {
@@ -1675,7 +1870,7 @@
             };
             
             // --- Team Stats Court Logic ---
-            const updateTeamCourtStats = (situationFilter) => {
+            const updateTeamCourtStats = (situationFilter, fieldZoneFilter = null) => {
                 let allShots = gameData.A.players.flatMap(p => p.shots);
                 let shotsToAnalyze = [];
 
@@ -1685,6 +1880,13 @@
                     shotsToAnalyze = allShots.filter(s => s.passive);
                 } else {
                     shotsToAnalyze = allShots.filter(s => s.situationA === situationFilter);
+                }
+
+                if(fieldZoneFilter) {
+                    shotsToAnalyze = shotsToAnalyze.filter(s => s.zone == fieldZoneFilter);
+                    document.getElementById('goal-map-title').textContent = `Mapa de Baliza (Zona ${fieldZoneFilter})`;
+                } else {
+                    document.getElementById('goal-map-title').textContent = `Mapa de Baliza (Todos os Remates)`;
                 }
 
                 for (let i = 1; i <= 8; i++) {
@@ -1698,6 +1900,32 @@
                         textElement.textContent = `${efficiency.toFixed(0)}% (${total})`;
                     }
                 }
+                updateTeamGoalMap(shotsToAnalyze);
+            };
+
+            const updateTeamGoalMap = (shots) => {
+                const container = d3.select("#team-goal-map-svg");
+                container.selectAll("circle").remove();
+
+                const goalZoneCoords = {
+                    tl: { x: 50, y: 33.33 },  tc: { x: 150, y: 33.33 },  tr: { x: 250, y: 33.33 },
+                    ml: { x: 50, y: 100 },    mc: { x: 150, y: 100 },    mr: { x: 250, y: 100 },
+                    bl: { x: 50, y: 166.67 }, bc: { x: 150, y: 166.67 }, br: { x: 250, y: 166.67 }
+                };
+                
+                const shotsWithGoalZone = shots.filter(s => s.goalZone);
+
+                container.selectAll("circle")
+                    .data(shotsWithGoalZone)
+                    .enter()
+                    .append("circle")
+                    .attr("cx", d => goalZoneCoords[d.goalZone]?.x || 0)
+                    .attr("cy", d => goalZoneCoords[d.goalZone]?.y || 0)
+                    .attr("r", 8)
+                    .attr("fill", d => d.outcome === 'goal' ? '#22c55e' : '#3b82f6') // green-500 for goal, blue-500 for saved
+                    .attr("opacity", 0.7)
+                    .attr("stroke", "white")
+                    .attr("stroke-width", 1);
             };
             
             // --- Plus-Minus Logic ---
@@ -1779,6 +2007,7 @@
             startBtn.addEventListener('click', startTimer);
             pauseBtn.addEventListener('click', pauseTimer);
             document.getElementById('switchPartBtn').addEventListener('click', () => {
+                saveActionState();
                 currentGamePart = currentGamePart === 1 ? 2 : 1;
                 gamePartDisplay.textContent = `${currentGamePart}ª Parte`;
                 saveGameState();
@@ -1790,6 +2019,7 @@
                 const seconds = parseInt(document.getElementById('correctSeconds').value, 10) || 0;
 
                 if (minutes >= 0 && seconds >= 0 && seconds < 60) {
+                    saveActionState();
                     const newTotalSeconds = (minutes * 60) + seconds;
                     const timeDifference = newTotalSeconds - totalSeconds;
 
@@ -1837,7 +2067,9 @@
             });
 
             // --- Game Situation Controls ---
+            undoBtn.addEventListener('click', handleUndo);
             passivePlayBtn.addEventListener('click', () => {
+                saveActionState();
                 isPassivePlay = !isPassivePlay;
                 passivePlayBtn.classList.toggle('passive-active');
                 passivePlayBtn.classList.toggle('bg-gray-700');
@@ -1845,6 +2077,7 @@
                 saveGameState();
             });
             opponent7v6Btn.addEventListener('click', () => {
+                saveActionState();
                 isOpponent7v6 = !isOpponent7v6;
                 opponent7v6Btn.classList.toggle('opponent-7v6-active');
                 opponent7v6Btn.classList.toggle('bg-gray-700');
@@ -1855,6 +2088,7 @@
                 saveGameState();
             });
             opponentTechFaultBtn.addEventListener('click', () => {
+                saveActionState();
                 gameData.B.stats.technical_faults++;
                 updateUI();
                 deactivatePassivePlay();
@@ -1862,6 +2096,7 @@
             });
             opponentOfficialSanctionBtn.addEventListener('click', () => {
                 showConfirm('Registar uma sanção de 2 minutos para o adversário?', () => {
+                    saveActionState();
                     gameData.B.isSuspended = true;
                     gameData.B.suspensionTimer = 120;
                     logEvent('B', 'two_min', 'Adversário', totalSeconds, 'Sanção de 2 Minutos (Adversário)');
@@ -1880,6 +2115,7 @@
                 if (!target) return;
 
                 if (target.classList.contains('toggle-status-btn')) {
+                    saveActionState();
                     const playerNumber = target.dataset.playerNumber;
                     const player = gameData.A.players.find(p => p.Numero == playerNumber);
                     if (player) {
@@ -1890,10 +2126,12 @@
                                 player.onCourt = !player.onCourt;
                             } else {
                                 showAlert('Não pode colocar um jogador em campo enquanto a equipa cumpre uma sanção.');
+                                handleUndo(); // Revert the state save
                                 return;
                             }
                         } else if (onCourtPlayersA >= 7 && !player.onCourt) {
                             showAlert('Só é permitido ter 7 jogadores em campo');
+                            handleUndo(); // Revert the state save
                             return; 
                         } else {
                             player.onCourt = !player.onCourt;
@@ -1937,17 +2175,49 @@
             confirmYesBtn.addEventListener('click', () => { if (confirmCallback) confirmCallback(); hideConfirm(); });
             confirmNoBtn.addEventListener('click', hideConfirm);
             document.getElementById('closeShotModalBtn').addEventListener('click', closeShotModal);
-            document.querySelectorAll('.shot-type-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.shot-type-btn.selected').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedShotType = btn.textContent; const validZones = shotZoneRules[selectedShotType]; document.querySelectorAll('.shot-zone-btn').forEach(zb => zb.classList.add('hidden')); document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = true); document.querySelectorAll('.shot-zone-btn.selected').forEach(b => b.classList.remove('selected')); if (validZones.length === 0) { document.getElementById('shot-zone-container').classList.add('hidden'); document.getElementById('shot-outcome-title').textContent = '2. Resultado do Remate'; document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = false); } else { document.getElementById('shot-zone-container').classList.remove('hidden'); document.getElementById('shot-outcome-title').textContent = '3. Resultado do Remate'; validZones.forEach(zoneNum => { document.querySelector(`.shot-zone-btn[data-zone='${zoneNum}']`).classList.remove('hidden'); }); } }); });
-            document.querySelectorAll('.shot-zone-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.shot-zone-btn.selected').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedShotZone = btn.dataset.zone; document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = false); }); });
-            document.querySelectorAll('.shot-outcome-btn').forEach(btn => { btn.addEventListener('click', () => { if (!selectedShotType || !currentPersonForAction) return; if (shotZoneRules[selectedShotType].length > 0 && !selectedShotZone) return; const outcome = btn.dataset.outcome; const situationA = getSituationA(); const situationB = getSituationB(); const shotData = { type: selectedShotType, zone: selectedShotZone, outcome: outcome, time: totalSeconds, situationA: situationA, situationB: situationB, passive: isPassivePlay }; let points = 0; if (isGkShot) { currentPersonForAction.shotsFaced.push(shotData); points = pointSystem.goalkeeper.shot_faced[selectedShotType]?.[outcome] || 0; if (outcome === 'goal') { updatePlusMinusOnGoal(false); } switch(outcome) { case 'goal': gameData.A.stats.gkGoalsAgainst++; gameData.B.stats.goals++; if (['1ª Vaga', '2ª Vaga', '3ª Vaga', 'Após Golo'].includes(selectedShotType)) { gameData.B.stats.transition_goals++; } logEvent('B', 'goal', 'Adversário', totalSeconds, `Golo Sofrido: ${currentPersonForAction.Nome}`); break; case 'saved': gameData.A.stats.gkSaves++; gameData.B.stats.savedShots++; logEvent('A', 'save', currentPersonForAction.Nome, totalSeconds, `Defesa de GR: ${currentPersonForAction.Nome}`); break; case 'miss': case 'post': gameData.B.stats.misses++; logEvent('B', 'miss', 'Adversário', totalSeconds, `Remate Fora/Poste (Adv)`); break; } } else { currentPersonForAction.shots.push(shotData); const pointKey = outcome === 'goal' ? 'goal' : 'fail'; const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player'; if (playerType === 'goalkeeper') { points = pointSystem.goalkeeper.shot[pointKey] || 0; } else { points = pointSystem.field_player.shot[selectedShotType]?.[pointKey] || 0; } if (outcome === 'goal') { updatePlusMinusOnGoal(true); } switch(outcome) { case 'goal': gameData.A.stats.goals++; logEvent('A', 'goal', currentPersonForAction.Nome, totalSeconds, `Golo: ${currentPersonForAction.Nome}`); break; case 'saved': gameData.A.stats.savedShots++; if (selectedShotType !== 'Baliza Aberta') { gameData.B.stats.gkSaves++; } logEvent('B', 'save', 'GR Adversário', totalSeconds, `Remate de ${currentPersonForAction.Nome} defendido`); break; case 'miss': case 'post': gameData.A.stats.misses++; logEvent('A', 'miss', currentPersonForAction.Nome, totalSeconds, `Remate Fora/Poste: ${currentPersonForAction.Nome}`); break; } } updatePlayerScore(currentPersonForAction, points); updateUI(); renderPlayers(); closeShotModal(); deactivatePassivePlay(); deactivateOpponent7v6(); }); });
+            document.querySelectorAll('.shot-type-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.shot-type-btn.selected').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedShotType = btn.textContent; const validZones = shotZoneRules[selectedShotType]; document.querySelectorAll('.shot-zone-btn').forEach(zb => zb.classList.add('hidden')); document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = true); document.querySelectorAll('.shot-zone-btn.selected').forEach(b => b.classList.remove('selected')); if (validZones.length === 0) { document.getElementById('shot-zone-container').classList.add('hidden'); document.getElementById('shot-outcome-title').textContent = '2. Resultado do Remate'; document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = false); } else { document.getElementById('shot-zone-container').classList.remove('hidden'); document.getElementById('shot-outcome-title').textContent = '2. Zona de Remate'; validZones.forEach(zoneNum => { document.querySelector(`.shot-zone-btn[data-zone='${zoneNum}']`).classList.remove('hidden'); }); } }); });
+            document.querySelectorAll('.shot-zone-btn').forEach(btn => { btn.addEventListener('click', () => { document.querySelectorAll('.shot-zone-btn.selected').forEach(b => b.classList.remove('selected')); btn.classList.add('selected'); selectedShotZone = btn.dataset.zone; document.querySelectorAll('.shot-outcome-btn').forEach(ob => ob.disabled = false); document.getElementById('shot-outcome-title').textContent = '3. Resultado do Remate'; }); });
+            
+            document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    if (!selectedShotType || !currentPersonForAction) return;
+                    if (shotZoneRules[selectedShotType].length > 0 && !selectedShotZone) return;
+
+                    const outcome = btn.dataset.outcome;
+
+                    if (outcome === 'goal' || outcome === 'saved') {
+                        shotOutcomeForGoalSelection = outcome;
+                        document.getElementById('shot-outcome-wrapper').classList.add('hidden');
+                        document.getElementById('shot-types-container-wrapper').classList.add('hidden');
+                        document.getElementById('shot-zone-container').classList.add('hidden');
+                        document.getElementById('shot-goal-container').classList.remove('hidden');
+                    } else { // miss or post
+                        saveActionState();
+                        const shotData = { type: selectedShotType, zone: selectedShotZone, outcome: outcome, goalZone: null, time: totalSeconds, situationA: getSituationA(), situationB: getSituationB(), passive: isPassivePlay };
+                        processShot(shotData);
+                        closeShotModal();
+                    }
+                });
+            });
+
+            document.getElementById('shot-goal-svg').addEventListener('click', (e) => {
+                if (e.target.classList.contains('goal-zone-rect')) {
+                    saveActionState();
+                    const goalZone = e.target.dataset.goalZone;
+                    const shotData = { type: selectedShotType, zone: selectedShotZone, outcome: shotOutcomeForGoalSelection, goalZone: goalZone, time: totalSeconds, situationA: getSituationA(), situationB: getSituationB(), passive: isPassivePlay };
+                    processShot(shotData);
+                    closeShotModal();
+                }
+            });
+
             document.getElementById('closeNegativeActionModalBtn').addEventListener('click', closeNegativeActionModal);
-            document.querySelectorAll('#negativeActionModal .negative-action-btn').forEach(btn => { btn.addEventListener('click', () => { if (!currentPersonForAction) return; const action = btn.dataset.negativeAction; const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player'; let points = 0; if (action === 'sanction') { const personToSanction = currentPersonForAction; closeNegativeActionModal(); openSanctionsModal(personToSanction, 'player'); return; } if (action === '2min_7m_foul') { if (currentPersonForAction.sanctions.twoMin >= 3 || currentPersonForAction.sanctions.red > 0) { showAlert('Este jogador não pode receber mais exclusões de 2 minutos.'); return; } currentPersonForAction.sanctions.twoMin++; currentPersonForAction.isSuspended = true; currentPersonForAction.suspensionTimer = 120; currentPersonForAction.onCourt = false; points = pointSystem[playerType].negative_actions['2min_7m_foul'] || 0; if (currentPersonForAction.sanctions.twoMin >= 3) { currentPersonForAction.sanctions.red = 1; triggerTeamSuspension(); } } else { points = pointSystem[playerType].negative_actions[action] || 0; } currentPersonForAction.negativeActions.push({ action: action, time: totalSeconds }); if (action === 'turnover') { gameData.A.stats.turnovers++; } updatePlayerScore(currentPersonForAction, points); updateUI(); renderPlayers(); closeNegativeActionModal(); deactivatePassivePlay(); deactivateOpponent7v6(); }); });
+            document.querySelectorAll('#negativeActionModal .negative-action-btn').forEach(btn => { btn.addEventListener('click', () => { if (!currentPersonForAction) return; saveActionState(); const action = btn.dataset.negativeAction; const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player'; let points = 0; if (action === 'sanction') { const personToSanction = currentPersonForAction; closeNegativeActionModal(); openSanctionsModal(personToSanction, 'player'); return; } if (action === '2min_7m_foul') { if (currentPersonForAction.sanctions.twoMin >= 3 || currentPersonForAction.sanctions.red > 0) { showAlert('Este jogador não pode receber mais exclusões de 2 minutos.'); handleUndo(); return; } currentPersonForAction.sanctions.twoMin++; currentPersonForAction.isSuspended = true; currentPersonForAction.suspensionTimer = 120; currentPersonForAction.onCourt = false; points = pointSystem[playerType].negative_actions['2min_7m_foul'] || 0; if (currentPersonForAction.sanctions.twoMin >= 3) { currentPersonForAction.sanctions.red = 1; triggerTeamSuspension(); } } else { points = pointSystem[playerType].negative_actions[action] || 0; } currentPersonForAction.negativeActions.push({ action: action, time: totalSeconds }); if (action === 'turnover') { gameData.A.stats.turnovers++; } updatePlayerScore(currentPersonForAction, points); updateUI(); renderPlayers(); closeNegativeActionModal(); deactivatePassivePlay(); deactivateOpponent7v6(); }); });
             document.getElementById('closePositiveActionModalBtn').addEventListener('click', closePositiveActionModal);
-            document.querySelectorAll('#positiveActionModal .positive-action-btn').forEach(btn => { btn.addEventListener('click', () => { if (!currentPersonForAction) return; const action = btn.dataset.positiveAction; const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player'; currentPersonForAction.positiveActions.push({ action: action, time: totalSeconds }); const points = pointSystem[playerType].positive_actions[action] || 0; updatePlayerScore(currentPersonForAction, points); if (action === 'steal') { gameData.B.stats.turnovers++; } if (action === '2min_provoked' || action === '2min_7m_provoked') { gameData.B.isSuspended = true; gameData.B.suspensionTimer = 120; checkAndLogSituationChange(); updateUI(); renderTimeline(); updateSituationButtonsState(); } renderPlayers(); closePositiveActionModal(); deactivatePassivePlay(); deactivateOpponent7v6(); }); });
+            document.querySelectorAll('#positiveActionModal .positive-action-btn').forEach(btn => { btn.addEventListener('click', () => { if (!currentPersonForAction) return; saveActionState(); const action = btn.dataset.positiveAction; const playerType = currentPersonForAction.isGoalkeeper ? 'goalkeeper' : 'field_player'; currentPersonForAction.positiveActions.push({ action: action, time: totalSeconds }); const points = pointSystem[playerType].positive_actions[action] || 0; updatePlayerScore(currentPersonForAction, points); if (action === 'steal') { gameData.B.stats.turnovers++; } if (action === '2min_provoked' || action === '2min_7m_provoked') { gameData.B.isSuspended = true; gameData.B.suspensionTimer = 120; checkAndLogSituationChange(); updateUI(); renderTimeline(); updateSituationButtonsState(); } renderPlayers(); closePositiveActionModal(); deactivatePassivePlay(); deactivateOpponent7v6(); }); });
             document.getElementById('closeSanctionsModalBtn').addEventListener('click', closeSanctionsModal);
-            document.getElementById('sanctionYellow').addEventListener('click', () => { if (!currentPersonForAction) return; const {person, type} = currentPersonForAction; person.sanctions.yellow = 1; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_yellow'] || 0; updatePlayerScore(person, points); gameData.A.teamYellowCards++; person.negativeActions.push({ action: 'yellow_card', time: totalSeconds }); } else { gameData.A.officialsSanctions.yellow++; } logEvent('A', 'yellow_card', person.Nome, totalSeconds, `Cartão Amarelo: ${person.Nome}`); closeSanctionsModal(); renderPlayers(); renderOfficials(); deactivatePassivePlay(); deactivateOpponent7v6(); });
-            document.getElementById('sanction2Min').addEventListener('click', () => { if (!currentPersonForAction) return; const {person, type} = currentPersonForAction; person.sanctions.twoMin++; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_2min'] || 0; updatePlayerScore(person, points); person.isSuspended = true; person.suspensionTimer = 120; person.onCourt = false; person.negativeActions.push({ action: '2min', time: totalSeconds }); if (person.sanctions.twoMin >= 3) { person.sanctions.red = 1; triggerTeamSuspension(); } } else { gameData.A.officialsSanctions.twoMin++; triggerTeamSuspension(); } logEvent('A', 'two_min', person.Nome, totalSeconds, `2 Minutos: ${person.Nome}`); checkAndLogSituationChange(); closeSanctionsModal(); renderPlayers(); renderOfficials(); renderTimeline(); deactivatePassivePlay(); deactivateOpponent7v6(); });
-            document.getElementById('sanctionRed').addEventListener('click', () => { if (!currentPersonForAction) return; const {person, type} = currentPersonForAction; person.sanctions.red = 1; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_red'] || 0; updatePlayerScore(person, points); person.onCourt = false; person.negativeActions.push({ action: 'red_card', time: totalSeconds }); } else { gameData.A.officialsSanctions.red++; } logEvent('A', 'red_card', person.Nome, totalSeconds, `Cartão Vermelho: ${person.Nome}`); triggerTeamSuspension(); closeSanctionsModal(); renderPlayers(); renderOfficials(); deactivatePassivePlay(); deactivateOpponent7v6(); });
+            document.getElementById('sanctionYellow').addEventListener('click', () => { if (!currentPersonForAction) return; saveActionState(); const {person, type} = currentPersonForAction; person.sanctions.yellow = 1; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_yellow'] || 0; updatePlayerScore(person, points); gameData.A.teamYellowCards++; person.negativeActions.push({ action: 'yellow_card', time: totalSeconds }); } else { gameData.A.officialsSanctions.yellow++; } logEvent('A', 'yellow_card', person.Nome, totalSeconds, `Cartão Amarelo: ${person.Nome}`); closeSanctionsModal(); renderPlayers(); renderOfficials(); deactivatePassivePlay(); deactivateOpponent7v6(); });
+            document.getElementById('sanction2Min').addEventListener('click', () => { if (!currentPersonForAction) return; saveActionState(); const {person, type} = currentPersonForAction; person.sanctions.twoMin++; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_2min'] || 0; updatePlayerScore(person, points); person.isSuspended = true; person.suspensionTimer = 120; person.onCourt = false; person.negativeActions.push({ action: '2min', time: totalSeconds }); if (person.sanctions.twoMin >= 3) { person.sanctions.red = 1; triggerTeamSuspension(); } } else { gameData.A.officialsSanctions.twoMin++; triggerTeamSuspension(); } logEvent('A', 'two_min', person.Nome, totalSeconds, `2 Minutos: ${person.Nome}`); checkAndLogSituationChange(); closeSanctionsModal(); renderPlayers(); renderOfficials(); renderTimeline(); deactivatePassivePlay(); deactivateOpponent7v6(); });
+            document.getElementById('sanctionRed').addEventListener('click', () => { if (!currentPersonForAction) return; saveActionState(); const {person, type} = currentPersonForAction; person.sanctions.red = 1; if(type === 'player') { const playerType = person.isGoalkeeper ? 'goalkeeper' : 'field_player'; const points = pointSystem[playerType].negative_actions['sanction_red'] || 0; updatePlayerScore(person, points); person.onCourt = false; person.negativeActions.push({ action: 'red_card', time: totalSeconds }); } else { gameData.A.officialsSanctions.red++; } logEvent('A', 'red_card', person.Nome, totalSeconds, `Cartão Vermelho: ${person.Nome}`); triggerTeamSuspension(); closeSanctionsModal(); renderPlayers(); renderOfficials(); deactivatePassivePlay(); deactivateOpponent7v6(); });
             document.getElementById('closeRemovePlayerModalBtn').addEventListener('click', closeRemovePlayerModal);
             
             // --- Other UI Listeners ---
@@ -1988,6 +2258,14 @@
             document.getElementById('player-stats-select').addEventListener('change', handleIndividualStatChange);
             document.getElementById('team-situation-select').addEventListener('change', (e) => {
                 updateTeamCourtStats(e.target.value);
+            });
+            document.getElementById('team-handball-court-svg').addEventListener('click', (e) => {
+                 let zone = null;
+                 const targetText = e.target.closest('text');
+                 if(targetText && targetText.id.startsWith('team-zone-')) {
+                     zone = targetText.id.split('-')[2];
+                 }
+                 updateTeamCourtStats(document.getElementById('team-situation-select').value, zone);
             });
 
             // --- Export Buttons ---
@@ -2145,6 +2423,7 @@
                         gameEvents,
                         gameSituationLog,
                         lastKnownSituations,
+                        actionHistory,
                         teamAName: document.getElementById('teamAName').value,
                         teamBName: document.getElementById('teamBName').value
                     };
@@ -2168,6 +2447,7 @@
                         gameEvents = gameState.gameEvents;
                         gameSituationLog = gameState.gameSituationLog || [];
                         lastKnownSituations = gameState.lastKnownSituations || { A: 'equality', B: 'equality' };
+                        actionHistory = gameState.actionHistory || [];
 
                         document.getElementById('teamAName').value = gameState.teamAName;
                         document.getElementById('teamBName').value = gameState.teamBName;
@@ -2183,6 +2463,11 @@
                             opponent7v6Btn.classList.remove('bg-gray-700', 'hover:bg-gray-600');
                         }
 
+                        if (actionHistory.length > 0) {
+                            undoBtn.disabled = false;
+                            undoBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+                        }
+                        
                         welcomeModal.classList.add('hidden');
                         mainApp.classList.remove('hidden');
 
@@ -2220,3 +2505,4 @@
     </script>
 </body>
 </html>
+
