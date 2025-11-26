@@ -63,6 +63,14 @@ function setupEvents() {
         }
     });
 
+    // NOVO: Botão Reiniciar Jogo
+    document.getElementById('resetGameBtn').addEventListener('click', () => {
+        if (confirm("Tem a certeza que quer reiniciar? \n\nTodos os golos e estatísticas deste jogo serão perdidos permanentemente.")) {
+            store.clearLocalStorage(); // Limpa os dados do telemóvel
+            window.location.reload();  // Recarrega a página para o ecrã inicial
+        }
+    });
+
     // 5. Botões Rápidos do Adversário
     document.getElementById('goalOpponentBtn').addEventListener('click', () => {
         store.update(s => s.gameData.B.stats.goals++);
