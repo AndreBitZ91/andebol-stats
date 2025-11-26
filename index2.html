@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Análise de Andebol - Profissional</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="bg-gray-900 text-white antialiased">
+
+    <!-- Ecrã de Carregamento -->
+    <div id="welcomeModal" class="fixed inset-0 bg-gray-900 flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-2xl p-8 w-full max-w-md text-center shadow-2xl">
+            <h2 class="text-3xl font-bold text-blue-400 mb-4">Preparar Jogo</h2>
+            <p class="text-gray-400 mb-4">Carregue o ficheiro .xlsx</p>
+            <div class="space-y-4 mb-8">
+                <input type="file" id="welcome-file-input-A" class="hidden" accept=".xlsx">
+                <label for="welcome-file-input-A" class="cursor-pointer w-full block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Carregar Plantel</label>
+                <p id="file-name-A" class="text-sm text-gray-500 h-5">Nenhum ficheiro selecionado</p>
+                <input type="text" id="welcome-team-b-name" placeholder="Nome do Adversário" class="w-full bg-gray-700 text-white text-center p-3 rounded-lg">
+            </div>
+            <button id="startGameBtn" class="w-full bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-lg disabled:opacity-50" disabled>Começar Jogo</button>
+        </div>
+    </div>
+
+    <!-- Aplicação Principal -->
+    <div id="main-app" class="container mx-auto p-4 hidden">
+        <!-- Placar -->
+        <div class="bg-gray-800 p-4 rounded-2xl shadow-lg mb-6 text-center">
+            <div class="flex justify-between mb-2">
+                <input type="text" id="teamAName" readonly class="bg-transparent text-blue-400 font-bold text-xl text-center w-1/3">
+                <span class="text-gray-500">vs</span>
+                <input type="text" id="teamBName" class="bg-transparent text-orange-400 font-bold text-xl text-center w-1/3">
+            </div>
+            <div class="flex justify-center items-center gap-8">
+                <div class="text-6xl font-bold" id="scoreA">0</div>
+                <div class="text-4xl text-gray-600">-</div>
+                <div class="text-6xl font-bold" id="scoreB">0</div>
+            </div>
+        </div>
+
+        <!-- Cronómetro e Controlos -->
+        <div class="bg-gray-800 p-6 rounded-2xl shadow-lg text-center mb-6">
+            <div id="timer" class="text-7xl font-mono tracking-widest mb-6 text-white">00:00</div>
+            <div class="grid grid-cols-2 gap-4">
+                <button id="startBtn" class="btn-feedback bg-green-600 text-white font-bold py-4 px-6 rounded-xl text-xl">Iniciar</button>
+                <button id="pauseBtn" class="btn-feedback bg-yellow-600 text-white font-bold py-4 px-6 rounded-xl text-xl">Pausar</button>
+            </div>
+            <button id="undoBtn" class="mt-4 w-full bg-gray-600 hover:bg-gray-500 text-white py-3 rounded-lg font-bold">↩ Desfazer Última Ação</button>
+        </div>
+
+        <!-- Listas de Jogadores -->
+        <div class="grid md:grid-cols-2 gap-4">
+            <div class="bg-gray-800 p-4 rounded-2xl">
+                <h3 class="text-xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2">Nossa Equipa</h3>
+                <div id="goalkeeper-list-A" class="space-y-2 mb-4"></div>
+                <div id="player-list-A" class="space-y-2"></div>
+            </div>
+            
+            <div class="bg-gray-800 p-4 rounded-2xl">
+                <h3 class="text-xl font-bold text-orange-400 mb-4 border-b border-gray-700 pb-2">Adversário</h3>
+                <div class="grid grid-cols-2 gap-3">
+                    <button id="goalOpponentBtn" class="bg-orange-600 hover:bg-orange-700 text-white font-bold py-4 rounded-xl">Golo Adversário</button>
+                    <button id="missOpponentBtn" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-4 rounded-xl">Falha/Defesa</button>
+                    <button id="yellowOpponentBtn" class="bg-yellow-500 text-black font-bold py-2 rounded-xl">Amarelo</button>
+                    <button id="twoMinOpponentBtn" class="bg-gray-200 text-black font-bold py-2 rounded-xl">2 Minutos</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Remate Simples -->
+    <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+        <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-sm text-center">
+            <h3 class="text-xl font-bold mb-4" id="shotPlayerName">Jogador</h3>
+            <div class="grid grid-cols-1 gap-3">
+                <button data-outcome="goal" class="shot-outcome-btn bg-green-500 hover:bg-green-600 py-4 rounded-xl text-xl font-bold">GOLO ⚽</button>
+                <button data-outcome="saved" class="shot-outcome-btn bg-blue-500 hover:bg-blue-600 py-4 rounded-xl text-xl font-bold">DEFESA GR 🧤</button>
+                <button data-outcome="miss" class="shot-outcome-btn bg-red-500 hover:bg-red-600 py-4 rounded-xl text-xl font-bold">FORA / POSTE 🥅</button>
+            </div>
+            <button id="closeShotModal" class="mt-6 text-gray-400">Cancelar</button>
+        </div>
+    </div>
+
+    <script type="module" src="js/main.js"></script>
+</body>
+</html>
