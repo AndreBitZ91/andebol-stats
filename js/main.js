@@ -82,11 +82,29 @@ function setupEventListeners() {
         });
     }
 
-    // Cronómetro: Iniciar
+    // Cronómetro: Iniciar com Validação de Jogadores
     document.getElementById('startBtn')?.addEventListener('click', () => { 
+        // 1. Verificar quantos jogadores estão em campo (onCourt = true)
+        const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
+        
+        // 2. Verificar duração escolhida (30 ou 25 min)
+        // Se não estiver definida (ex: jogo antigo carregado), assume 30 por segurança
+        const duration = store.state.halfDuration || 30; 
+        
+        // 3. Definir regra
+        const requiredPlayers = (duration === 25) ? 6 : 7;
+
+        // 4. Validar
+        if (playersOnCourt !== requiredPlayers) {
+            alert(`⚠️ Não é possível iniciar!\n\nModo de jogo: ${duration} minutos por parte.\nRegra: Devem estar exatamente ${requiredPlayers} jogadores em campo.\n\nJogadores atuais em campo: ${playersOnCourt}`);
+            return; // Impede o início do cronómetro
+        }
+
+        // Se passou a validação, inicia
         timer.start(); 
         store.update(s => s.isRunning = true); 
-        // Bloquear botão de corrigir
+        
+        // Bloquear botão de corrigir enquanto corre
         if(els.editTimerBtn) els.editTimerBtn.disabled = true;
     });
 
@@ -400,6 +418,10 @@ function renderPlayers() {
 
 // --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
+    // 1. Verificações de Jogo
+    const duration = store.state.halfDuration || 30; // 30 ou 25
+    const limit = (duration === 25) ? 6 : 7; // Limite de jogadores em campo
+
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
     
     if (player) {
@@ -408,10 +430,11 @@ window.togglePlayer = (num) => {
             return;
         }
 
+        // Se vai ENTRAR em campo (!onCourt), verifica se já atingiu o limite
         if (!player.onCourt) {
             const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-            if (playersOnCourt >= 7) {
-                alert("Já tem 7 jogadores em campo! Retire um jogador antes de adicionar outro.");
+            if (playersOnCourt >= limit) {
+                alert(`⚠️ Limite de ${limit} jogadores em campo atingido!\n(Modo de jogo: ${duration} minutos).`);
                 return;
             }
         }
