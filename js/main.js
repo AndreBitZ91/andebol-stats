@@ -7,27 +7,23 @@ import { exportToExcel } from './export.js';
 let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
-let els = {}; // Objeto vazio, será preenchido no arranque
+let els = {}; 
 
-// --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Capturar Elementos HTML com segurança
     initDOMElements();
 
-    // 2. Configurar o Cronómetro
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
         updateDisplay();
         checkTimeEvents(seconds);
     });
 
-    // 3. Tentar recuperar jogo anterior
     const hasSavedGame = store.loadFromLocalStorage();
     
     if (hasSavedGame) {
-        initUI(); // Vai para o jogo
+        initUI();
     } else {
-        showWelcomeScreen(); // Garante que mostra o menu
+        showWelcomeScreen();
     }
 
     setupEventListeners();
@@ -50,7 +46,6 @@ function initDOMElements() {
         shotsA: document.getElementById('shotsA'),
         savesA: document.getElementById('savesA'),
         techFaultsA: document.getElementById('techFaultsA'),
-        // Inputs
         welcomeFileInput: document.getElementById('welcome-file-input-A'),
         welcomeTeamBName: document.getElementById('welcome-team-b-name'),
         startGameBtn: document.getElementById('startGameBtn'),
@@ -60,35 +55,35 @@ function initDOMElements() {
 }
 
 function setupEventListeners() {
-    // --- Ecrã Inicial ---
     if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
     if(els.startGameBtn) {
         els.startGameBtn.addEventListener('click', () => {
-            store.update(s => { s.teamBName = els.welcomeTeamBName.value; });
+            // Capturar a duração selecionada (NOVO)
+            const selectedDuration = document.querySelector('input[name="gameDuration"]:checked').value;
+            
+            store.update(s => { 
+                s.teamBName = els.welcomeTeamBName.value;
+                s.halfDuration = parseInt(selectedDuration); // Guardar 30 ou 25
+            });
             initUI();
         });
     }
 
-    // --- Controlos de Jogo ---
     document.getElementById('startBtn')?.addEventListener('click', () => { timer.start(); store.update(s => s.isRunning = true); });
     document.getElementById('pauseBtn')?.addEventListener('click', () => { timer.pause(store.state.totalSeconds); store.update(s => s.isRunning = false); });
 
-    // Botões de Gestão
     document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     
-    // AQUI: O evento CRÍTICO do Novo Jogo
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
-    // --- Ações Rápidas Adversário ---
     document.getElementById('goalOpponentBtn')?.addEventListener('click', () => registerOpponentAction('goal'));
     document.getElementById('saveOpponentBtn')?.addEventListener('click', () => registerOpponentAction('save'));
     document.getElementById('missOpponentBtn')?.addEventListener('click', () => registerOpponentAction('miss'));
     document.getElementById('twoMinOpponentBtn')?.addEventListener('click', () => registerOpponentAction('2min'));
 
-    // --- Situações Táticas ---
     document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
@@ -124,7 +119,6 @@ function setupModals() {
         btn.addEventListener('click', (e) => handleGenericAction(e.target.dataset.action, 'negative'));
     });
 
-    // Fechar Modais
     const closeIds = ['closeShotModal', 'closeSanctionsModal', 'closePositiveModal', 'closeNegativeModal'];
     closeIds.forEach(id => {
         const el = document.getElementById(id);
@@ -137,13 +131,10 @@ function setupModals() {
     });
 }
 
-// --- Lógica de Reset (Novo Jogo) ---
-
 function handleReset() {
-    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados serão apagados e voltará ao menu inicial.");
-    
+    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
     if (confirmacao) {
-        localStorage.clear(); 
+        sessionStorage.clear(); 
         window.location.reload();
     }
 }
@@ -152,8 +143,6 @@ function showWelcomeScreen() {
     if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
     if(els.mainApp) els.mainApp.classList.add('hidden');
 }
-
-// --- Resto da Lógica de Jogo ---
 
 function handleShotOutcome(outcome) {
     store.update(s => {
@@ -221,25 +210,49 @@ function registerOpponentAction(action) {
         if (action === 'save') { s.gameData.B.stats.gkSaves++; s.gameData.A.stats.savedShots++; }
         if (action === 'miss') { s.gameData.B.stats.misses++; }
         if (action === '2min') { s.gameData.B.isSuspended = true; s.gameData.B.suspensionTimer = 120; }
-        
         logGameEvent(s, 'B', action, `Adversário: ${action}`);
     });
     refreshUI();
 }
 
 function checkTimeEvents(totalSeconds) {
-    if (totalSeconds > 0 && store.state.isRunning) {
-        let needsUpdate = false;
-        store.state.gameData.A.players.forEach(p => {
-            if (p.isSuspended && p.suspensionTimer > 0) {
-                p.suspensionTimer--;
-                if (p.suspensionTimer <= 0) p.isSuspended = false;
-                needsUpdate = true;
-            }
-            if (p.onCourt) p.timeOnCourt++;
+    if (!store.state.isRunning) return;
+
+    // --- Lógica de Fim de Parte / Jogo Baseada na Duração ---
+    const halfDurationSeconds = store.state.halfDuration * 60; // 25 ou 30 minutos em segundos
+    
+    // Fim da 1ª Parte
+    if (store.state.currentGamePart === 1 && totalSeconds >= halfDurationSeconds) {
+        timer.pause(totalSeconds);
+        store.update(s => {
+            s.isRunning = false;
+            s.currentGamePart = 2; // Prepara para a 2ª parte
         });
-        if(needsUpdate) updateSuspensionsDisplay();
+        alert("Fim da 1ª Parte!");
+        return; // Pára aqui para não incrementar suspensões neste tick
     }
+
+    // Fim do Jogo
+    if (store.state.currentGamePart === 2 && totalSeconds >= halfDurationSeconds * 2) {
+        timer.pause(totalSeconds);
+        store.update(s => {
+            s.isRunning = false;
+        });
+        alert("Fim do Jogo!");
+        return;
+    }
+
+    // --- Gestão de Suspensões ---
+    let needsUpdate = false;
+    store.state.gameData.A.players.forEach(p => {
+        if (p.isSuspended && p.suspensionTimer > 0) {
+            p.suspensionTimer--;
+            if (p.suspensionTimer <= 0) p.isSuspended = false;
+            needsUpdate = true;
+        }
+        if (p.onCourt) p.timeOnCourt++;
+    });
+    if(needsUpdate) updateSuspensionsDisplay();
 }
 
 function updateSuspensionsDisplay() {
@@ -333,7 +346,6 @@ function renderPlayers() {
 
 // --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
-    // 1. Verificar o estado atual do jogador ANTES de tentar mudar
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
     
     if (player) {
@@ -342,7 +354,6 @@ window.togglePlayer = (num) => {
             return;
         }
 
-        // Se o jogador estiver no BANCO (!onCourt) e quisermos que ele entre...
         if (!player.onCourt) {
             const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
             if (playersOnCourt >= 7) {
@@ -352,7 +363,6 @@ window.togglePlayer = (num) => {
         }
     }
 
-    // 2. Se passar as verificações, executa a troca
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
         if(p && !p.isSuspended) p.onCourt = !p.onCourt;
