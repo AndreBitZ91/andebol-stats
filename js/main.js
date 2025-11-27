@@ -24,7 +24,7 @@ document.addEventListener('DOMContentLoaded', () => {
         initUI();
         // Restaurar estado correto do botão Corrigir
         if (!store.state.isRunning && store.state.totalSeconds > 0) {
-            els.editTimerBtn.disabled = false;
+            if(els.editTimerBtn) els.editTimerBtn.disabled = false;
         }
     } else {
         showWelcomeScreen();
@@ -84,27 +84,18 @@ function setupEventListeners() {
 
     // Cronómetro: Iniciar com Validação de Jogadores
     document.getElementById('startBtn')?.addEventListener('click', () => { 
-        // 1. Verificar quantos jogadores estão em campo (onCourt = true)
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-        
-        // 2. Verificar duração escolhida (30 ou 25 min)
-        // Se não estiver definida (ex: jogo antigo carregado), assume 30 por segurança
         const duration = store.state.halfDuration || 30; 
-        
-        // 3. Definir regra
         const requiredPlayers = (duration === 25) ? 6 : 7;
 
-        // 4. Validar
         if (playersOnCourt !== requiredPlayers) {
             alert(`⚠️ Não é possível iniciar!\n\nModo de jogo: ${duration} minutos por parte.\nRegra: Devem estar exatamente ${requiredPlayers} jogadores em campo.\n\nJogadores atuais em campo: ${playersOnCourt}`);
-            return; // Impede o início do cronómetro
+            return; 
         }
 
-        // Se passou a validação, inicia
         timer.start(); 
         store.update(s => s.isRunning = true); 
         
-        // Bloquear botão de corrigir enquanto corre
         if(els.editTimerBtn) els.editTimerBtn.disabled = true;
     });
 
@@ -112,31 +103,49 @@ function setupEventListeners() {
     document.getElementById('pauseBtn')?.addEventListener('click', () => { 
         timer.pause(store.state.totalSeconds); 
         store.update(s => s.isRunning = false); 
-        // Desbloquear botão de corrigir
         if(els.editTimerBtn) els.editTimerBtn.disabled = false;
     });
 
     // Eventos do Modal de Correção de Tempo
     if(els.editTimerBtn) {
         els.editTimerBtn.addEventListener('click', () => {
+            if (store.state.isRunning) return; // Segurança extra
+            
             // Preencher inputs com o tempo atual
             const total = store.state.totalSeconds;
-            els.correctMin.value = Math.floor(total / 60);
-            els.correctSec.value = total % 60;
+            const min = Math.floor(total / 60);
+            const sec = total % 60;
+            
+            // Força a atualização dos valores dos inputs
+            els.correctMin.value = min;
+            els.correctSec.value = sec;
+            
             els.correctionModal.classList.remove('hidden');
         });
     }
 
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
-            const min = parseInt(els.correctMin.value) || 0;
-            const sec = parseInt(els.correctSec.value) || 0;
+            // Ler valores garantindo que são números
+            const minVal = els.correctMin.value;
+            const secVal = els.correctSec.value;
+            
+            const min = parseInt(minVal) || 0;
+            const sec = parseInt(secVal) || 0;
+            
+            // Calcular novo total
             const newTotalSeconds = (min * 60) + sec;
             
+            // 1. Atualizar o Store (Estado Global)
             store.update(s => s.totalSeconds = newTotalSeconds);
-            timer.setTime(newTotalSeconds); // Atualizar o timer interno
+            
+            // 2. Atualizar o Timer Interno (Classe GameTimer)
+            timer.setTime(newTotalSeconds);
+            
+            // 3. Atualizar o Ecrã Imediatamente
             updateDisplay();
             
+            // Fechar modal
             els.correctionModal.classList.add('hidden');
         });
     }
@@ -301,7 +310,7 @@ function checkTimeEvents(totalSeconds) {
             s.currentGamePart = 2; 
         });
         alert("Fim da 1ª Parte!");
-        if(els.editTimerBtn) els.editTimerBtn.disabled = false; // Desbloqueia o botão corrigir na pausa automática
+        if(els.editTimerBtn) els.editTimerBtn.disabled = false; 
         return; 
     }
 
