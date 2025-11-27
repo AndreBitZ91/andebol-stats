@@ -331,7 +331,12 @@ function checkTimeEvents(totalSeconds) {
             if (p.suspensionTimer <= 0) p.isSuspended = false;
             needsUpdate = true;
         }
-        if (p.onCourt) p.timeOnCourt++;
+        if (p.onCourt) {
+            p.timeOnCourt++;
+            // Atualiza visualmente o tempo do jogador em tempo real
+            const timeEl = document.getElementById(`time-p-${p.Numero}`);
+            if (timeEl) timeEl.textContent = formatTime(p.timeOnCourt);
+        }
     });
     if(needsUpdate) updateSuspensionsDisplay();
 }
@@ -410,6 +415,7 @@ function renderPlayers() {
             </div>
             
             <div class="flex items-center justify-end gap-1 w-2/3">
+                <span id="time-p-${p.Numero}" class="text-xs font-mono text-gray-300 mr-1">${formatTime(p.timeOnCourt)}</span>
                 <span class="text-xs font-mono text-yellow-500 mr-2">PTS:${p.performanceScore || 0}</span>
                 <button class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded" onclick="window.openModal('shot', '${p.Numero}')">🎯</button>
                 <button class="bg-teal-600 hover:bg-teal-500 text-white px-2 py-1 rounded" onclick="window.openModal('positive', '${p.Numero}')">👍</button>
