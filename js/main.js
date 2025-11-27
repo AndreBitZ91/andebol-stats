@@ -130,11 +130,17 @@ function handleReset() {
     // 1. Pede confirmação ao utilizador
     if(confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados atuais serão apagados e voltará ao menu inicial.")) {
         // 2. Limpa o LocalStorage (apaga o progresso guardado)
-        store.clearLocalStorage();
+        // Correção: Apaga manualmente as chaves para garantir que funciona
+        // mesmo se o método não estiver definido no state.js
+        if (store.clearLocalStorage) {
+            store.clearLocalStorage();
+        } else {
+            localStorage.removeItem('handballGameState_v2');
+            localStorage.removeItem('handballGameState');
+        }
         
         // 3. Recarrega a página (Browser Refresh)
-        // Ao recarregar, como o LocalStorage está vazio, o código de inicialização
-        // (nas primeiras linhas deste ficheiro) vai mostrar o 'welcomeModal' automaticamente.
+        // Ao recarregar, como o LocalStorage está vazio, o código de inicialização vai mostrar o 'welcomeModal'.
         window.location.reload();
     }
 }
