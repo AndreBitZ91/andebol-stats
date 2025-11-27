@@ -26,6 +26,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!store.state.isRunning && store.state.totalSeconds > 0) {
             if(els.editTimerBtn) els.editTimerBtn.disabled = false;
         }
+        // Sincronizar o timer interno com o estado guardado
+        if (timer && !store.state.isRunning) {
+            timer.elapsedPaused = store.state.totalSeconds;
+        }
     } else {
         showWelcomeScreen();
     }
@@ -126,21 +130,23 @@ function setupEventListeners() {
 
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
-            // Ler valores garantindo que são números
-            const minVal = els.correctMin.value;
-            const secVal = els.correctSec.value;
-            
-            const min = parseInt(minVal) || 0;
-            const sec = parseInt(secVal) || 0;
-            
-            // Calcular novo total
+            // CORREÇÃO AQUI: Assegurar que atualizamos o timer.elapsedPaused
+            const min = parseInt(els.correctMin.value) || 0;
+            const sec = parseInt(els.correctSec.value) || 0;
             const newTotalSeconds = (min * 60) + sec;
             
             // 1. Atualizar o Store (Estado Global)
             store.update(s => s.totalSeconds = newTotalSeconds);
             
             // 2. Atualizar o Timer Interno (Classe GameTimer)
-            timer.setTime(newTotalSeconds);
+            // Se tiver o método setTime, usa-o. Senão, define a propriedade diretamente.
+            if (timer) {
+                if (typeof timer.setTime === 'function') {
+                    timer.setTime(newTotalSeconds);
+                } else {
+                    timer.elapsedPaused = newTotalSeconds; // Fallback crucial
+                }
+            }
             
             // 3. Atualizar o Ecrã Imediatamente
             updateDisplay();
