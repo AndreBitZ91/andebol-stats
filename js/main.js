@@ -1,4 +1,4 @@
-// js/main.js - O Maestro da Aplicação
+// js/main.js - Lógica Principal Atualizada
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -7,92 +7,103 @@ import { exportToExcel } from './export.js';
 let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
-
-// DOM Cache
-const els = {
-    welcomeModal: document.getElementById('welcomeModal'),
-    mainApp: document.getElementById('main-app'),
-    timerDisplay: document.getElementById('timer'),
-    scoreA: document.getElementById('scoreA'),
-    scoreB: document.getElementById('scoreB'),
-    suspensionContainer: document.getElementById('suspension-container'),
-    timelineList: document.getElementById('timeline-list'),
-    shotModal: document.getElementById('shotModal'),
-    sanctionsModal: document.getElementById('sanctionsModal'),
-    positiveModal: document.getElementById('positiveActionModal'),
-    negativeModal: document.getElementById('negativeActionModal'),
-    effA: document.getElementById('effA'),
-    shotsA: document.getElementById('shotsA'),
-    savesA: document.getElementById('savesA'),
-    techFaultsA: document.getElementById('techFaultsA')
-};
+let els = {}; // Objeto vazio, será preenchido no arranque
 
 // --- Inicialização ---
 document.addEventListener('DOMContentLoaded', () => {
-    // 1. Configurar o Cronómetro
+    // 1. Capturar Elementos HTML com segurança
+    initDOMElements();
+
+    // 2. Configurar o Cronómetro
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
         updateDisplay();
         checkTimeEvents(seconds);
     });
 
-    // 2. Tentar recuperar jogo anterior
-    // Se existir jogo, vai direto para o Main App. Se não, mostra o Welcome Modal.
-    if (store.loadFromLocalStorage()) {
-        initUI();
+    // 3. Tentar recuperar jogo anterior
+    const hasSavedGame = store.loadFromLocalStorage();
+    
+    if (hasSavedGame) {
+        initUI(); // Vai para o jogo
     } else {
-        els.welcomeModal.classList.remove('hidden');
+        showWelcomeScreen(); // Garante que mostra o menu
     }
 
     setupEventListeners();
 });
 
+function initDOMElements() {
+    els = {
+        welcomeModal: document.getElementById('welcomeModal'),
+        mainApp: document.getElementById('main-app'),
+        timerDisplay: document.getElementById('timer'),
+        scoreA: document.getElementById('scoreA'),
+        scoreB: document.getElementById('scoreB'),
+        suspensionContainer: document.getElementById('suspension-container'),
+        timelineList: document.getElementById('timeline-list'),
+        shotModal: document.getElementById('shotModal'),
+        sanctionsModal: document.getElementById('sanctionsModal'),
+        positiveModal: document.getElementById('positiveActionModal'),
+        negativeModal: document.getElementById('negativeActionModal'),
+        effA: document.getElementById('effA'),
+        shotsA: document.getElementById('shotsA'),
+        savesA: document.getElementById('savesA'),
+        techFaultsA: document.getElementById('techFaultsA'),
+        // Inputs
+        welcomeFileInput: document.getElementById('welcome-file-input-A'),
+        welcomeTeamBName: document.getElementById('welcome-team-b-name'),
+        startGameBtn: document.getElementById('startGameBtn'),
+        teamAName: document.getElementById('teamAName'),
+        teamBName: document.getElementById('teamBName')
+    };
+}
+
 function setupEventListeners() {
     // --- Ecrã Inicial ---
-    document.getElementById('welcome-file-input-A').addEventListener('change', handleFileSelect);
-    document.getElementById('welcome-team-b-name').addEventListener('input', checkStart);
+    if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
+    if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
-    // Botão que avança do Menu para o Jogo
-    document.getElementById('startGameBtn').addEventListener('click', () => {
-        store.update(s => { s.teamBName = document.getElementById('welcome-team-b-name').value; });
-        initUI();
-    });
+    if(els.startGameBtn) {
+        els.startGameBtn.addEventListener('click', () => {
+            store.update(s => { s.teamBName = els.welcomeTeamBName.value; });
+            initUI();
+        });
+    }
 
     // --- Controlos de Jogo ---
-    document.getElementById('startBtn').addEventListener('click', () => { timer.start(); store.update(s => s.isRunning = true); });
-    document.getElementById('pauseBtn').addEventListener('click', () => { timer.pause(store.state.totalSeconds); store.update(s => s.isRunning = false); });
+    document.getElementById('startBtn')?.addEventListener('click', () => { timer.start(); store.update(s => s.isRunning = true); });
+    document.getElementById('pauseBtn')?.addEventListener('click', () => { timer.pause(store.state.totalSeconds); store.update(s => s.isRunning = false); });
 
-    // Botões de Gestão (Undo, Exportar, Novo Jogo)
-    document.getElementById('undoBtn').addEventListener('click', handleUndo);
-    document.getElementById('exportExcelBtn').addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
+    // Botões de Gestão
+    document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
+    document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     
-    // AQUI: O evento que faz o botão "Novo Jogo" voltar ao menu
-    document.getElementById('resetGameBtn').addEventListener('click', handleReset);
+    // AQUI: O evento CRÍTICO do Novo Jogo
+    document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
     // --- Ações Rápidas Adversário ---
-    document.getElementById('goalOpponentBtn').addEventListener('click', () => registerOpponentAction('goal'));
-    document.getElementById('saveOpponentBtn').addEventListener('click', () => registerOpponentAction('save'));
-    document.getElementById('missOpponentBtn').addEventListener('click', () => registerOpponentAction('miss'));
-    document.getElementById('twoMinOpponentBtn').addEventListener('click', () => registerOpponentAction('2min'));
+    document.getElementById('goalOpponentBtn')?.addEventListener('click', () => registerOpponentAction('goal'));
+    document.getElementById('saveOpponentBtn')?.addEventListener('click', () => registerOpponentAction('save'));
+    document.getElementById('missOpponentBtn')?.addEventListener('click', () => registerOpponentAction('miss'));
+    document.getElementById('twoMinOpponentBtn')?.addEventListener('click', () => registerOpponentAction('2min'));
 
     // --- Situações Táticas ---
-    document.getElementById('passivePlayBtn').addEventListener('click', (e) => {
+    document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
         e.target.classList.toggle('bg-gray-700');
     });
-    document.getElementById('opponent7v6Btn').addEventListener('click', (e) => {
+    document.getElementById('opponent7v6Btn')?.addEventListener('click', (e) => {
         store.update(s => s.isOpponent7v6 = !s.isOpponent7v6);
         e.target.classList.toggle('bg-orange-600');
         e.target.classList.toggle('bg-gray-700');
     });
 
-    // --- Modais (Remate, Sanções, etc) ---
     setupModals();
 }
 
 function setupModals() {
-    // Remate
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -103,13 +114,9 @@ function setupModals() {
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
-
-    // Sanções
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
-
-    // Ações Positivas/Negativas
     document.querySelectorAll('.positive-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleGenericAction(e.target.dataset.action, 'positive'));
     });
@@ -118,31 +125,37 @@ function setupModals() {
     });
 
     // Fechar Modais
-    document.getElementById('closeShotModal').onclick = () => els.shotModal.classList.add('hidden');
-    document.getElementById('closeSanctionsModal').onclick = () => els.sanctionsModal.classList.add('hidden');
-    document.getElementById('closePositiveModal').onclick = () => els.positiveModal.classList.add('hidden');
-    document.getElementById('closeNegativeModal').onclick = () => els.negativeModal.classList.add('hidden');
+    const closeIds = ['closeShotModal', 'closeSanctionsModal', 'closePositiveModal', 'closeNegativeModal'];
+    closeIds.forEach(id => {
+        const el = document.getElementById(id);
+        if(el) el.onclick = () => {
+            els.shotModal.classList.add('hidden');
+            els.sanctionsModal.classList.add('hidden');
+            els.positiveModal.classList.add('hidden');
+            els.negativeModal.classList.add('hidden');
+        };
+    });
 }
 
 // --- Lógica de Reset (Novo Jogo) ---
 
 function handleReset() {
-    // 1. Pede confirmação ao utilizador
-    if(confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados atuais serão apagados e voltará ao menu inicial.")) {
-        // 2. Limpa o LocalStorage (apaga o progresso guardado)
-        // Correção: Apaga manualmente as chaves para garantir que funciona
-        // mesmo se o método não estiver definido no state.js
-        if (store.clearLocalStorage) {
-            store.clearLocalStorage();
-        } else {
-            localStorage.removeItem('handballGameState_v2');
-            localStorage.removeItem('handballGameState');
-        }
+    // 1. Pergunta ao utilizador
+    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados serão apagados e voltará ao menu inicial.");
+    
+    if (confirmacao) {
+        // 2. Apaga TUDO do armazenamento local
+        localStorage.clear(); 
         
-        // 3. Recarrega a página (Browser Refresh)
-        // Ao recarregar, como o LocalStorage está vazio, o código de inicialização vai mostrar o 'welcomeModal'.
+        // 3. Recarrega a página forçosamente
         window.location.reload();
     }
+    // Se a confirmação for falsa (clicar em Cancelar), não faz nada e mantém-se no jogo.
+}
+
+function showWelcomeScreen() {
+    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
+    if(els.mainApp) els.mainApp.classList.add('hidden');
 }
 
 // --- Resto da Lógica de Jogo ---
@@ -255,9 +268,9 @@ function refreshUI() {
 }
 
 function updateDisplay() {
-    els.scoreA.textContent = store.state.gameData.A.stats.goals;
-    els.scoreB.textContent = store.state.gameData.B.stats.goals;
-    els.timerDisplay.textContent = formatTime(store.state.totalSeconds);
+    if(els.scoreA) els.scoreA.textContent = store.state.gameData.A.stats.goals;
+    if(els.scoreB) els.scoreB.textContent = store.state.gameData.B.stats.goals;
+    if(els.timerDisplay) els.timerDisplay.textContent = formatTime(store.state.totalSeconds);
 }
 
 function updateTeamStats() {
@@ -266,14 +279,15 @@ function updateTeamStats() {
     const techFaults = store.state.gameData.A.players.reduce((acc, p) => 
         acc + (p.negativeActions ? p.negativeActions.filter(a => a.action === 'technical_fault').length : 0), 0);
 
-    els.shotsA.textContent = totalShots;
-    els.savesA.textContent = statsA.gkSaves;
-    els.techFaultsA.textContent = techFaults;
-    els.effA.textContent = totalShots > 0 ? Math.round((statsA.goals / totalShots) * 100) + '%' : '0%';
+    if(els.shotsA) els.shotsA.textContent = totalShots;
+    if(els.savesA) els.savesA.textContent = statsA.gkSaves;
+    if(els.techFaultsA) els.techFaultsA.textContent = techFaults;
+    if(els.effA) els.effA.textContent = totalShots > 0 ? Math.round((statsA.goals / totalShots) * 100) + '%' : '0%';
 }
 
 function renderTimeline() {
     const list = els.timelineList;
+    if(!list) return;
     list.innerHTML = '';
     store.state.gameEvents.slice().reverse().slice(0, 10).forEach(e => {
         const div = document.createElement('div');
@@ -286,6 +300,8 @@ function renderTimeline() {
 function renderPlayers() {
     const list = document.getElementById('player-list-A');
     const gkList = document.getElementById('goalkeeper-list-A');
+    if(!list || !gkList) return;
+    
     list.innerHTML = '';
     gkList.innerHTML = '';
     
@@ -320,7 +336,7 @@ function renderPlayers() {
     });
 }
 
-// Funções Globais para o HTML
+// --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
@@ -388,16 +404,16 @@ function handleFileSelect(e) {
 }
 
 function checkStart() {
-    const ready = store.state.gameData.A.fileLoaded && document.getElementById('welcome-team-b-name').value !== "";
-    document.getElementById('startGameBtn').disabled = !ready;
-    if(ready) document.getElementById('startGameBtn').classList.remove('opacity-50');
+    const ready = store.state.gameData.A.fileLoaded && els.welcomeTeamBName.value !== "";
+    els.startGameBtn.disabled = !ready;
+    if(ready) els.startGameBtn.classList.remove('opacity-50');
 }
 
 function initUI() {
     els.welcomeModal.classList.add('hidden');
     els.mainApp.classList.remove('hidden');
-    document.getElementById('teamAName').value = store.state.teamAName;
-    document.getElementById('teamBName').value = store.state.teamBName;
+    els.teamAName.value = store.state.teamAName;
+    els.teamBName.value = store.state.teamBName;
     timer.elapsedPaused = store.state.totalSeconds;
     refreshUI();
 }
