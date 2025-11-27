@@ -22,6 +22,10 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (hasSavedGame) {
         initUI();
+        // Restaurar estado correto do botão Corrigir
+        if (!store.state.isRunning && store.state.totalSeconds > 0) {
+            els.editTimerBtn.disabled = false;
+        }
     } else {
         showWelcomeScreen();
     }
@@ -31,6 +35,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
+        // ... (elementos anteriores)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -50,7 +55,15 @@ function initDOMElements() {
         welcomeTeamBName: document.getElementById('welcome-team-b-name'),
         startGameBtn: document.getElementById('startGameBtn'),
         teamAName: document.getElementById('teamAName'),
-        teamBName: document.getElementById('teamBName')
+        teamBName: document.getElementById('teamBName'),
+        
+        // Novos Elementos para Correção de Tempo
+        editTimerBtn: document.getElementById('editTimerBtn'),
+        correctionModal: document.getElementById('correctionModal'),
+        correctMin: document.getElementById('correctMin'),
+        correctSec: document.getElementById('correctSec'),
+        saveCorrectionBtn: document.getElementById('saveCorrectionBtn'),
+        closeCorrectionBtn: document.getElementById('closeCorrectionBtn')
     };
 }
 
@@ -60,25 +73,67 @@ function setupEventListeners() {
     
     if(els.startGameBtn) {
         els.startGameBtn.addEventListener('click', () => {
-            // Capturar a duração selecionada (NOVO)
             const selectedDuration = document.querySelector('input[name="gameDuration"]:checked').value;
-            
             store.update(s => { 
                 s.teamBName = els.welcomeTeamBName.value;
-                s.halfDuration = parseInt(selectedDuration); // Guardar 30 ou 25
+                s.halfDuration = parseInt(selectedDuration);
             });
             initUI();
         });
     }
 
-    document.getElementById('startBtn')?.addEventListener('click', () => { timer.start(); store.update(s => s.isRunning = true); });
-    document.getElementById('pauseBtn')?.addEventListener('click', () => { timer.pause(store.state.totalSeconds); store.update(s => s.isRunning = false); });
+    // Cronómetro: Iniciar
+    document.getElementById('startBtn')?.addEventListener('click', () => { 
+        timer.start(); 
+        store.update(s => s.isRunning = true); 
+        // Bloquear botão de corrigir
+        if(els.editTimerBtn) els.editTimerBtn.disabled = true;
+    });
+
+    // Cronómetro: Pausar
+    document.getElementById('pauseBtn')?.addEventListener('click', () => { 
+        timer.pause(store.state.totalSeconds); 
+        store.update(s => s.isRunning = false); 
+        // Desbloquear botão de corrigir
+        if(els.editTimerBtn) els.editTimerBtn.disabled = false;
+    });
+
+    // Eventos do Modal de Correção de Tempo
+    if(els.editTimerBtn) {
+        els.editTimerBtn.addEventListener('click', () => {
+            // Preencher inputs com o tempo atual
+            const total = store.state.totalSeconds;
+            els.correctMin.value = Math.floor(total / 60);
+            els.correctSec.value = total % 60;
+            els.correctionModal.classList.remove('hidden');
+        });
+    }
+
+    if(els.saveCorrectionBtn) {
+        els.saveCorrectionBtn.addEventListener('click', () => {
+            const min = parseInt(els.correctMin.value) || 0;
+            const sec = parseInt(els.correctSec.value) || 0;
+            const newTotalSeconds = (min * 60) + sec;
+            
+            store.update(s => s.totalSeconds = newTotalSeconds);
+            timer.setTime(newTotalSeconds); // Atualizar o timer interno
+            updateDisplay();
+            
+            els.correctionModal.classList.add('hidden');
+        });
+    }
+
+    if(els.closeCorrectionBtn) {
+        els.closeCorrectionBtn.addEventListener('click', () => {
+            els.correctionModal.classList.add('hidden');
+        });
+    }
 
     document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
-    
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
+    // Botões de Ação Rápida
     document.getElementById('goalOpponentBtn')?.addEventListener('click', () => registerOpponentAction('goal'));
     document.getElementById('saveOpponentBtn')?.addEventListener('click', () => registerOpponentAction('save'));
     document.getElementById('missOpponentBtn')?.addEventListener('click', () => registerOpponentAction('miss'));
@@ -210,6 +265,7 @@ function registerOpponentAction(action) {
         if (action === 'save') { s.gameData.B.stats.gkSaves++; s.gameData.A.stats.savedShots++; }
         if (action === 'miss') { s.gameData.B.stats.misses++; }
         if (action === '2min') { s.gameData.B.isSuspended = true; s.gameData.B.suspensionTimer = 120; }
+        
         logGameEvent(s, 'B', action, `Adversário: ${action}`);
     });
     refreshUI();
@@ -218,31 +274,29 @@ function registerOpponentAction(action) {
 function checkTimeEvents(totalSeconds) {
     if (!store.state.isRunning) return;
 
-    // --- Lógica de Fim de Parte / Jogo Baseada na Duração ---
-    const halfDurationSeconds = store.state.halfDuration * 60; // 25 ou 30 minutos em segundos
+    const halfDurationSeconds = store.state.halfDuration * 60; 
     
-    // Fim da 1ª Parte
     if (store.state.currentGamePart === 1 && totalSeconds >= halfDurationSeconds) {
         timer.pause(totalSeconds);
         store.update(s => {
             s.isRunning = false;
-            s.currentGamePart = 2; // Prepara para a 2ª parte
+            s.currentGamePart = 2; 
         });
         alert("Fim da 1ª Parte!");
-        return; // Pára aqui para não incrementar suspensões neste tick
+        if(els.editTimerBtn) els.editTimerBtn.disabled = false; // Desbloqueia o botão corrigir na pausa automática
+        return; 
     }
 
-    // Fim do Jogo
     if (store.state.currentGamePart === 2 && totalSeconds >= halfDurationSeconds * 2) {
         timer.pause(totalSeconds);
         store.update(s => {
             s.isRunning = false;
         });
         alert("Fim do Jogo!");
+        if(els.editTimerBtn) els.editTimerBtn.disabled = false; 
         return;
     }
 
-    // --- Gestão de Suspensões ---
     let needsUpdate = false;
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
