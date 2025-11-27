@@ -140,17 +140,12 @@ function setupModals() {
 // --- Lógica de Reset (Novo Jogo) ---
 
 function handleReset() {
-    // 1. Pergunta ao utilizador
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados serão apagados e voltará ao menu inicial.");
     
     if (confirmacao) {
-        // 2. Apaga TUDO do armazenamento local
         localStorage.clear(); 
-        
-        // 3. Recarrega a página forçosamente
         window.location.reload();
     }
-    // Se a confirmação for falsa (clicar em Cancelar), não faz nada e mantém-se no jogo.
 }
 
 function showWelcomeScreen() {
@@ -338,6 +333,26 @@ function renderPlayers() {
 
 // --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
+    // 1. Verificar o estado atual do jogador ANTES de tentar mudar
+    const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
+    
+    if (player) {
+        if (player.isSuspended) {
+            alert("O jogador está suspenso e não pode entrar em campo agora.");
+            return;
+        }
+
+        // Se o jogador estiver no BANCO (!onCourt) e quisermos que ele entre...
+        if (!player.onCourt) {
+            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
+            if (playersOnCourt >= 7) {
+                alert("Já tem 7 jogadores em campo! Retire um jogador antes de adicionar outro.");
+                return;
+            }
+        }
+    }
+
+    // 2. Se passar as verificações, executa a troca
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
         if(p && !p.isSuspended) p.onCourt = !p.onCourt;
