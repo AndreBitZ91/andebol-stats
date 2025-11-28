@@ -118,28 +118,57 @@
         </div>
     </div>
 
-    <!-- Modais Existentes (Shot, Sanctions, etc...) mantêm-se iguais, adicionamos o novo no fim -->
+    <!-- === MODAIS === -->
+
+    <!-- Modal Remate (SEQUENCIAL) -->
     <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-sm text-center">
+        <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl">
             <h3 class="text-xl font-bold mb-2 text-blue-400" id="shotPlayerName">Jogador</h3>
-            <div class="grid grid-cols-3 gap-2 mb-4">
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">Ponta</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">9mt</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">6mt</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">7mt</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">Pivot</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">Penetração</button>
-                <button class="shot-type-btn bg-gray-700 p-2 rounded text-white text-sm">Contra-Ataque</button>
+            
+            <!-- PASSO 1: TIPO DE REMATE -->
+            <div id="shotTypeContainer" class="mb-4">
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">1. Tipo de Remate</p>
+                <div class="grid grid-cols-3 gap-2">
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">Ponta</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">9mt</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">6mt</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">7mt</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">Pivot</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">Penetração</button>
+                    <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">Contra-Ataque</button>
+                </div>
             </div>
-            <div class="grid grid-cols-1 gap-3">
-                <button data-outcome="goal" class="shot-outcome-btn bg-green-600 hover:bg-green-700 py-3 rounded-xl text-lg font-bold">GOLO ⚽</button>
-                <button data-outcome="saved" class="shot-outcome-btn bg-blue-600 hover:bg-blue-700 py-3 rounded-xl text-lg font-bold">DEFESA GR 🧤</button>
-                <button data-outcome="miss" class="shot-outcome-btn bg-red-600 hover:bg-red-700 py-3 rounded-xl text-lg font-bold">FORA / POSTE 🥅</button>
+
+            <!-- PASSO 2: ZONA (Inicialmente Oculto) -->
+            <div id="shotZoneContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">2. Zona de Remate</p>
+                <div class="grid grid-cols-4 gap-2">
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="1">1</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="2">2</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="3">3</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="4">4</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="5">5</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="6">6</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="7">7</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="8">8</button>
+                </div>
             </div>
-            <button id="closeShotModal" class="mt-6 text-gray-400 w-full py-2">Cancelar</button>
+
+            <!-- PASSO 3: RESULTADO (Inicialmente Oculto) -->
+            <div id="shotOutcomeContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">3. Resultado</p>
+                <div class="grid grid-cols-1 gap-2">
+                    <button data-outcome="goal" class="shot-outcome-btn bg-green-600 hover:bg-green-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">GOLO ⚽</button>
+                    <button data-outcome="saved" class="shot-outcome-btn bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">DEFESA GR 🧤</button>
+                    <button data-outcome="miss" class="shot-outcome-btn bg-red-600 hover:bg-red-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">FORA / POSTE 🥅</button>
+                </div>
+            </div>
+
+            <button id="closeShotModal" class="mt-4 text-gray-400 w-full py-2 hover:text-white transition">Cancelar</button>
         </div>
     </div>
 
+    <!-- Modal Sanções -->
     <div id="sanctionsModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-500">Sanção Disciplinar</h3>
@@ -152,6 +181,7 @@
         </div>
     </div>
 
+    <!-- Modal Ações Positivas -->
     <div id="positiveActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-green-400">Ação Positiva</h3>
@@ -164,6 +194,7 @@
         </div>
     </div>
 
+    <!-- Modal Ações Negativas -->
     <div id="negativeActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-400">Ação Negativa</h3>
@@ -176,7 +207,7 @@
         </div>
     </div>
 
-    <!-- NOVO MODAL: Correção de Tempo -->
+    <!-- Modal Correção de Tempo -->
     <div id="correctionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center border border-blue-500">
             <h3 class="text-xl font-bold mb-6 text-white">Corrigir Tempo</h3>
