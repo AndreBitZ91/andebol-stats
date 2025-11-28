@@ -1,4 +1,4 @@
-// js/main.js - Lógica Principal Atualizada
+// js/main.js
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -8,8 +8,9 @@ let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
 let currentShotZone = null;
-let currentShotCoords = null; // NOVO: Coordenadas do remate
+let currentShotCoords = null; 
 let els = {}; 
+let heatmapMode = 'us'; // 'us' ou 'them'
 
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
@@ -30,6 +31,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timer && !store.state.isRunning) {
             timer.elapsedPaused = store.state.totalSeconds;
         }
+        // Restaurar histórico de B se não existir
+        if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
     } else {
         showWelcomeScreen();
     }
@@ -39,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (elementos existentes)
+        // ... (todos os elementos anteriores)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -68,12 +71,20 @@ function initDOMElements() {
         saveCorrectionBtn: document.getElementById('saveCorrectionBtn'),
         closeCorrectionBtn: document.getElementById('closeCorrectionBtn'),
 
-        // Elementos do Modal Sequencial
         shotZoneContainer: document.getElementById('shotZoneContainer'),
-        shotGoalContainer: document.getElementById('shotGoalContainer'), // NOVO
+        shotGoalContainer: document.getElementById('shotGoalContainer'),
         shotOutcomeContainer: document.getElementById('shotOutcomeContainer'),
-        goalSvg: document.getElementById('goalSvg'), // NOVO
-        shotMarker: document.getElementById('shotMarker') // NOVO
+        goalSvg: document.getElementById('goalSvg'),
+        shotMarker: document.getElementById('shotMarker'),
+
+        // ABAS
+        tabData: document.getElementById('tab-data'),
+        tabStats: document.getElementById('tab-stats'),
+        tabHeatmap: document.getElementById('tab-heatmap'),
+        statsComparisonContainer: document.getElementById('stats-comparison-container'),
+        heatmapPoints: document.getElementById('heatmap-points'),
+        btnHeatmapUs: document.getElementById('btn-heatmap-us'),
+        btnHeatmapThem: document.getElementById('btn-heatmap-them')
     };
 }
 
@@ -87,21 +98,66 @@ function setupEventListeners() {
             store.update(s => { 
                 s.teamBName = els.welcomeTeamBName.value;
                 s.halfDuration = parseInt(selectedDuration);
+                s.gameData.B.history = []; // Inicializa histórico adversário
             });
             initUI();
         });
     }
 
+    // --- Lógica de Abas ---
+    document.querySelectorAll('.tab-link').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Estilos
+            document.querySelectorAll('.tab-link').forEach(b => {
+                b.classList.remove('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
+                b.classList.add('bg-gray-800', 'text-gray-400');
+            });
+            const clicked = e.target.closest('button');
+            clicked.classList.remove('bg-gray-800', 'text-gray-400');
+            clicked.classList.add('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
+
+            // Conteúdo
+            const tabName = clicked.dataset.tab;
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+            if (tabName === 'stats') updateStatsTab();
+            if (tabName === 'heatmap') updateHeatmapTab();
+        });
+    });
+
+    // Filtros Heatmap
+    if (els.btnHeatmapUs) {
+        els.btnHeatmapUs.addEventListener('click', () => {
+            heatmapMode = 'us';
+            updateHeatmapTab();
+            els.btnHeatmapUs.classList.add('bg-blue-600', 'text-white');
+            els.btnHeatmapUs.classList.remove('bg-gray-700', 'text-gray-300');
+            els.btnHeatmapThem.classList.remove('bg-blue-600', 'text-white');
+            els.btnHeatmapThem.classList.add('bg-gray-700', 'text-gray-300');
+        });
+    }
+    if (els.btnHeatmapThem) {
+        els.btnHeatmapThem.addEventListener('click', () => {
+            heatmapMode = 'them';
+            updateHeatmapTab();
+            els.btnHeatmapThem.classList.add('bg-blue-600', 'text-white');
+            els.btnHeatmapThem.classList.remove('bg-gray-700', 'text-gray-300');
+            els.btnHeatmapUs.classList.remove('bg-blue-600', 'text-white');
+            els.btnHeatmapUs.classList.add('bg-gray-700', 'text-gray-300');
+        });
+    }
+
+    // Cronómetro
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
         const requiredPlayers = (duration === 25) ? 6 : 7;
 
         if (playersOnCourt !== requiredPlayers) {
-            alert(`⚠️ Não é possível iniciar!\n\nModo de jogo: ${duration} minutos por parte.\nRegra: Devem estar exatamente ${requiredPlayers} jogadores em campo.\n\nJogadores atuais em campo: ${playersOnCourt}`);
+            alert(`⚠️ Atenção: Para ${duration} min, deve ter ${requiredPlayers} jogadores em campo.`);
             return; 
         }
-
         timer.start(); 
         store.update(s => s.isRunning = true); 
         if(els.editTimerBtn) els.editTimerBtn.disabled = true;
@@ -136,15 +192,14 @@ function setupEventListeners() {
     }
 
     if(els.closeCorrectionBtn) {
-        els.closeCorrectionBtn.addEventListener('click', () => {
-            els.correctionModal.classList.add('hidden');
-        });
+        els.closeCorrectionBtn.addEventListener('click', () => els.correctionModal.classList.add('hidden'));
     }
 
     document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
+    // Botões Situação
     document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
@@ -160,19 +215,17 @@ function setupEventListeners() {
 }
 
 function setupModals() {
-    // 1. Tipo de Remate (Passo 1)
+    // 1. Tipo
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             currentShotType = e.target.innerText;
             
-            // Avança para Zonas
             els.shotZoneContainer.classList.remove('hidden');
             els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
             
-            // Reset seleções seguintes
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
             currentShotCoords = null;
@@ -180,48 +233,41 @@ function setupModals() {
         });
     });
 
-    // 2. Zona de Campo (Passo 2)
+    // 2. Zona
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             currentShotZone = e.target.dataset.zone;
-            
-            // Avança para Baliza SVG (Passo 3)
             els.shotGoalContainer.classList.remove('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
         });
     });
 
-    // 3. Clique na Baliza SVG (Passo 3) - NOVO
+    // 3. SVG Click
     if (els.goalSvg) {
         els.goalSvg.addEventListener('click', (e) => {
             const rect = els.goalSvg.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
             
-            // Converter para percentagem (para ser responsivo e usar em heatmaps)
             const xPercent = (x / rect.width) * 100;
             const yPercent = (y / rect.height) * 100;
-            
             currentShotCoords = { x: xPercent.toFixed(1), y: yPercent.toFixed(1) };
 
-            // Mostrar bolinha amarela onde clicou
             els.shotMarker.style.left = x + 'px';
             els.shotMarker.style.top = y + 'px';
             els.shotMarker.classList.remove('hidden');
-
-            // Avança para Resultado (Passo 4)
             els.shotOutcomeContainer.classList.remove('hidden');
         });
     }
 
-    // 4. Resultado Final (Passo 4)
+    // 4. Resultado
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
 
-    // Outros Modais
+    // Outros
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
@@ -244,6 +290,152 @@ function setupModals() {
     });
 }
 
+function handleShotOutcome(outcome) {
+    store.update(s => {
+        const typeKey = currentShotType || 'Default';
+        const zoneKey = currentShotZone || '0';
+        const coords = currentShotCoords || { x: 0, y: 0 }; 
+        
+        if (currentPersonForAction === 'OPPONENT') {
+            // Lógica Adversário
+            if (outcome === 'goal') {
+                s.gameData.B.stats.goals++;
+                s.gameData.A.stats.gkGoalsAgainst++;
+                logGameEvent(s, 'B', 'shot', `Golo Adversário (${typeKey})`);
+            } else if (outcome === 'saved') {
+                s.gameData.B.stats.savedShots++;
+                s.gameData.A.stats.gkSaves++;
+                logGameEvent(s, 'B', 'shot', `Defesa GR (${typeKey})`);
+            } else if (outcome === 'miss') {
+                s.gameData.B.stats.misses++;
+                logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey})`);
+            }
+            
+            // Guardar no histórico do Adversário
+            if (!s.gameData.B.history) s.gameData.B.history = [];
+            s.gameData.B.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
+
+        } else {
+            // Lógica Nossa Equipa
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+
+            if(outcome === 'goal') { p.goals++; s.gameData.A.stats.goals++; }
+            if(outcome === 'miss') s.gameData.A.stats.misses++;
+            if(outcome === 'saved') s.gameData.A.stats.savedShots++;
+
+            const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
+            const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
+            p.performanceScore = (p.performanceScore || 0) + points;
+
+            if (!p.history) p.history = [];
+            p.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
+
+            logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey})`);
+        }
+    });
+    els.shotModal.classList.add('hidden');
+    refreshUI();
+}
+
+// --- Renderização de Abas Especiais ---
+
+function updateStatsTab() {
+    const statsA = store.state.gameData.A.stats;
+    const statsB = store.state.gameData.B.stats;
+    const teamA = store.state.teamAName;
+    const teamB = store.state.teamBName;
+
+    const totalShotsA = statsA.goals + statsA.misses + statsA.savedShots;
+    const totalShotsB = statsB.goals + statsB.misses + statsB.savedShots;
+    
+    const effA = totalShotsA > 0 ? ((statsA.goals / totalShotsA) * 100).toFixed(0) : 0;
+    const effB = totalShotsB > 0 ? ((statsB.goals / totalShotsB) * 100).toFixed(0) : 0;
+
+    const gkEffA = (statsA.gkSaves + statsA.gkGoalsAgainst) > 0 
+        ? ((statsA.gkSaves / (statsA.gkSaves + statsA.gkGoalsAgainst)) * 100).toFixed(0) : 0;
+    
+    // Assumindo que remates guardados de B são defesas de A e vice-versa no modelo simplificado
+    const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
+        ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
+
+    const rows = [
+        { label: "Golos", valA: statsA.goals, valB: statsB.goals },
+        { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
+        { label: "Eficácia GR", valA: `${gkEffA}%`, valB: `${gkEffB}%` }, // GR de A vs GR de B
+        { label: "Faltas Técnicas", valA: store.state.gameData.A.stats.technical_faults, valB: statsB.technical_faults },
+        { label: "Perdas de Bola", valA: statsA.turnovers, valB: statsB.turnovers }
+    ];
+
+    let html = '';
+    rows.forEach(row => {
+        html += `
+            <div class="grid grid-cols-3 items-center text-center border-b border-gray-700 py-3">
+                <div class="text-xl font-bold text-blue-400">${row.valA}</div>
+                <div class="text-sm text-gray-400 font-medium">${row.label}</div>
+                <div class="text-xl font-bold text-orange-400">${row.valB}</div>
+            </div>
+        `;
+    });
+    
+    // Cabeçalho da tabela
+    const header = `
+        <div class="grid grid-cols-3 text-center mb-2">
+            <div class="font-bold text-white truncate px-2">${teamA}</div>
+            <div></div>
+            <div class="font-bold text-white truncate px-2">${teamB}</div>
+        </div>
+    `;
+
+    els.statsComparisonContainer.innerHTML = header + html;
+}
+
+function updateHeatmapTab() {
+    const container = els.heatmapPoints;
+    container.innerHTML = ''; // Limpar pontos anteriores
+
+    let shotsToDraw = [];
+
+    if (heatmapMode === 'us') {
+        // Coletar todos os remates dos jogadores da Equipa A
+        store.state.gameData.A.players.forEach(p => {
+            if (p.history) {
+                p.history.forEach(shot => {
+                    if (shot.coords && shot.coords.x) {
+                        shotsToDraw.push(shot);
+                    }
+                });
+            }
+        });
+    } else {
+        // Coletar histórico da Equipa B
+        if (store.state.gameData.B.history) {
+            shotsToDraw = store.state.gameData.B.history.filter(s => s.coords && s.coords.x);
+        }
+    }
+
+    shotsToDraw.forEach(shot => {
+        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+        // As coordenadas foram guardadas em %, converter para viewBox (300x200)
+        circle.setAttribute("cx", (shot.coords.x / 100) * 300);
+        circle.setAttribute("cy", (shot.coords.y / 100) * 200);
+        circle.setAttribute("r", 6);
+        
+        // Cores
+        if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e"); // Verde
+        else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6"); // Azul
+        else circle.setAttribute("fill", "#ef4444"); // Vermelho (Fora/Poste)
+
+        circle.setAttribute("stroke", "white");
+        circle.setAttribute("stroke-width", "1");
+        circle.setAttribute("opacity", "0.8");
+        
+        container.appendChild(circle);
+    });
+}
+
+// ... Resto das funções (Reset, UI, Timers, Handle, etc) iguais ...
+
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
     if (confirmacao) {
@@ -256,57 +448,6 @@ function showWelcomeScreen() {
     if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
     if(els.mainApp) els.mainApp.classList.add('hidden');
 }
-
-function handleShotOutcome(outcome) {
-    store.update(s => {
-        const typeKey = currentShotType || 'Default';
-        const zoneKey = currentShotZone || '0';
-        // Guarda as coordenadas para heatmap futuro
-        const coords = currentShotCoords || { x: 0, y: 0 }; 
-        
-        if (currentPersonForAction === 'OPPONENT') {
-            if (outcome === 'goal') {
-                s.gameData.B.stats.goals++;
-                s.gameData.A.stats.gkGoalsAgainst++;
-                logGameEvent(s, 'B', 'shot', `Golo Adversário (${typeKey}, Z${zoneKey})`);
-            } else if (outcome === 'saved') {
-                s.gameData.B.stats.savedShots++;
-                s.gameData.A.stats.gkSaves++;
-                logGameEvent(s, 'B', 'shot', `Defesa GR (${typeKey}, Z${zoneKey})`);
-            } else if (outcome === 'miss') {
-                s.gameData.B.stats.misses++;
-                logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey}, Z${zoneKey})`);
-            }
-        } else {
-            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-            if(!p) return;
-
-            if(outcome === 'goal') { p.goals++; s.gameData.A.stats.goals++; }
-            if(outcome === 'miss') s.gameData.A.stats.misses++;
-            if(outcome === 'saved') s.gameData.A.stats.savedShots++;
-
-            const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
-            const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
-            p.performanceScore = (p.performanceScore || 0) + points;
-
-            // Adiciona o remate completo com coordenadas ao histórico do jogador
-            if (!p.history) p.history = [];
-            p.history.push({
-                type: typeKey,
-                zone: zoneKey,
-                coords: coords,
-                outcome: outcome,
-                time: s.totalSeconds
-            });
-
-            logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
-        }
-    });
-    els.shotModal.classList.add('hidden');
-    refreshUI();
-}
-
-// ... Resto das funções mantêm-se iguais (Sanction, Generic, TimeEvents, UI, etc) ...
 
 function handleSanctionOutcome(type) {
     store.update(s => {
@@ -432,6 +573,9 @@ function refreshUI() {
     updateTeamStats();
     renderTimeline();
     updateSuspensionsDisplay();
+    // Atualiza abas se visíveis
+    if(!els.tabStats.classList.contains('hidden')) updateStatsTab();
+    if(!els.tabHeatmap.classList.contains('hidden')) updateHeatmapTab();
 }
 
 function updateDisplay() {
@@ -548,8 +692,8 @@ window.openModal = (type, num) => {
     document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     els.shotZoneContainer.classList.add('hidden');
     els.shotOutcomeContainer.classList.add('hidden');
-    els.shotGoalContainer.classList.add('hidden'); // Reset novo container
-    els.shotMarker.classList.add('hidden'); // Esconder marcador
+    els.shotGoalContainer.classList.add('hidden'); 
+    els.shotMarker.classList.add('hidden'); 
     
     currentShotType = null;
     currentShotZone = null;
