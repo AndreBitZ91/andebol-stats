@@ -1,4 +1,4 @@
-// js/main.js
+// js/main.js - Lógica Principal Atualizada
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -10,7 +10,6 @@ let currentShotType = null;
 let currentShotZone = null;
 let currentShotCoords = null; 
 let els = {}; 
-let heatmapMode = 'us'; // 'us' ou 'them'
 
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
@@ -31,7 +30,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timer && !store.state.isRunning) {
             timer.elapsedPaused = store.state.totalSeconds;
         }
-        // Restaurar histórico de B se não existir
+        // Assegurar histórico adversário
         if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
     } else {
         showWelcomeScreen();
@@ -42,7 +41,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (todos os elementos anteriores)
+        // ... (elementos existentes)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -77,14 +76,13 @@ function initDOMElements() {
         goalSvg: document.getElementById('goalSvg'),
         shotMarker: document.getElementById('shotMarker'),
 
-        // ABAS
+        // ABAS NOVAS
         tabData: document.getElementById('tab-data'),
         tabStats: document.getElementById('tab-stats'),
         tabHeatmap: document.getElementById('tab-heatmap'),
         statsComparisonContainer: document.getElementById('stats-comparison-container'),
-        heatmapPoints: document.getElementById('heatmap-points'),
-        btnHeatmapUs: document.getElementById('btn-heatmap-us'),
-        btnHeatmapThem: document.getElementById('btn-heatmap-them')
+        heatmapPointsAttack: document.getElementById('heatmap-points-attack'),
+        heatmapPointsDefense: document.getElementById('heatmap-points-defense')
     };
 }
 
@@ -98,16 +96,16 @@ function setupEventListeners() {
             store.update(s => { 
                 s.teamBName = els.welcomeTeamBName.value;
                 s.halfDuration = parseInt(selectedDuration);
-                s.gameData.B.history = []; // Inicializa histórico adversário
+                s.gameData.B.history = [];
             });
             initUI();
         });
     }
 
-    // --- Lógica de Abas ---
+    // Lógica de Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Estilos
+            // Reset Estilos
             document.querySelectorAll('.tab-link').forEach(b => {
                 b.classList.remove('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
                 b.classList.add('bg-gray-800', 'text-gray-400');
@@ -116,7 +114,7 @@ function setupEventListeners() {
             clicked.classList.remove('bg-gray-800', 'text-gray-400');
             clicked.classList.add('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
 
-            // Conteúdo
+            // Mostrar Conteúdo
             const tabName = clicked.dataset.tab;
             document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
             document.getElementById(`tab-${tabName}`).classList.remove('hidden');
@@ -126,29 +124,6 @@ function setupEventListeners() {
         });
     });
 
-    // Filtros Heatmap
-    if (els.btnHeatmapUs) {
-        els.btnHeatmapUs.addEventListener('click', () => {
-            heatmapMode = 'us';
-            updateHeatmapTab();
-            els.btnHeatmapUs.classList.add('bg-blue-600', 'text-white');
-            els.btnHeatmapUs.classList.remove('bg-gray-700', 'text-gray-300');
-            els.btnHeatmapThem.classList.remove('bg-blue-600', 'text-white');
-            els.btnHeatmapThem.classList.add('bg-gray-700', 'text-gray-300');
-        });
-    }
-    if (els.btnHeatmapThem) {
-        els.btnHeatmapThem.addEventListener('click', () => {
-            heatmapMode = 'them';
-            updateHeatmapTab();
-            els.btnHeatmapThem.classList.add('bg-blue-600', 'text-white');
-            els.btnHeatmapThem.classList.remove('bg-gray-700', 'text-gray-300');
-            els.btnHeatmapUs.classList.remove('bg-blue-600', 'text-white');
-            els.btnHeatmapUs.classList.add('bg-gray-700', 'text-gray-300');
-        });
-    }
-
-    // Cronómetro
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
@@ -199,7 +174,6 @@ function setupEventListeners() {
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
-    // Botões Situação
     document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
@@ -215,7 +189,6 @@ function setupEventListeners() {
 }
 
 function setupModals() {
-    // 1. Tipo
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -233,7 +206,6 @@ function setupModals() {
         });
     });
 
-    // 2. Zona
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -244,7 +216,6 @@ function setupModals() {
         });
     });
 
-    // 3. SVG Click
     if (els.goalSvg) {
         els.goalSvg.addEventListener('click', (e) => {
             const rect = els.goalSvg.getBoundingClientRect();
@@ -262,12 +233,10 @@ function setupModals() {
         });
     }
 
-    // 4. Resultado
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
 
-    // Outros
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
@@ -297,7 +266,6 @@ function handleShotOutcome(outcome) {
         const coords = currentShotCoords || { x: 0, y: 0 }; 
         
         if (currentPersonForAction === 'OPPONENT') {
-            // Lógica Adversário
             if (outcome === 'goal') {
                 s.gameData.B.stats.goals++;
                 s.gameData.A.stats.gkGoalsAgainst++;
@@ -311,12 +279,10 @@ function handleShotOutcome(outcome) {
                 logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey})`);
             }
             
-            // Guardar no histórico do Adversário
             if (!s.gameData.B.history) s.gameData.B.history = [];
             s.gameData.B.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
 
         } else {
-            // Lógica Nossa Equipa
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
 
@@ -338,8 +304,6 @@ function handleShotOutcome(outcome) {
     refreshUI();
 }
 
-// --- Renderização de Abas Especiais ---
-
 function updateStatsTab() {
     const statsA = store.state.gameData.A.stats;
     const statsB = store.state.gameData.B.stats;
@@ -355,14 +319,16 @@ function updateStatsTab() {
     const gkEffA = (statsA.gkSaves + statsA.gkGoalsAgainst) > 0 
         ? ((statsA.gkSaves / (statsA.gkSaves + statsA.gkGoalsAgainst)) * 100).toFixed(0) : 0;
     
-    // Assumindo que remates guardados de B são defesas de A e vice-versa no modelo simplificado
     const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
         ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
+
+    const teamYellowA = store.state.gameData.A.players.reduce((sum, p) => sum + p.sanctions.yellow, 0);
+    const teamYellowB = store.state.gameData.B.isSuspended ? 1 : 0; // Simplificação visual para adversário
 
     const rows = [
         { label: "Golos", valA: statsA.goals, valB: statsB.goals },
         { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
-        { label: "Eficácia GR", valA: `${gkEffA}%`, valB: `${gkEffB}%` }, // GR de A vs GR de B
+        { label: "Eficácia GR", valA: `${gkEffA}%`, valB: `${gkEffB}%` },
         { label: "Faltas Técnicas", valA: store.state.gameData.A.stats.technical_faults, valB: statsB.technical_faults },
         { label: "Perdas de Bola", valA: statsA.turnovers, valB: statsB.turnovers }
     ];
@@ -370,20 +336,19 @@ function updateStatsTab() {
     let html = '';
     rows.forEach(row => {
         html += `
-            <div class="grid grid-cols-3 items-center text-center border-b border-gray-700 py-3">
+            <div class="grid grid-cols-3 items-center text-center py-4">
                 <div class="text-xl font-bold text-blue-400">${row.valA}</div>
-                <div class="text-sm text-gray-400 font-medium">${row.label}</div>
+                <div class="text-sm text-gray-400 font-medium uppercase tracking-wide">${row.label}</div>
                 <div class="text-xl font-bold text-orange-400">${row.valB}</div>
             </div>
         `;
     });
     
-    // Cabeçalho da tabela
     const header = `
-        <div class="grid grid-cols-3 text-center mb-2">
-            <div class="font-bold text-white truncate px-2">${teamA}</div>
+        <div class="grid grid-cols-3 text-center mb-4 border-b border-gray-600 pb-2">
+            <div class="font-bold text-white truncate px-2 text-lg">${teamA}</div>
             <div></div>
-            <div class="font-bold text-white truncate px-2">${teamB}</div>
+            <div class="font-bold text-white truncate px-2 text-lg">${teamB}</div>
         </div>
     `;
 
@@ -391,50 +356,49 @@ function updateStatsTab() {
 }
 
 function updateHeatmapTab() {
-    const container = els.heatmapPoints;
-    container.innerHTML = ''; // Limpar pontos anteriores
+    // 1. Limpar Pontos
+    els.heatmapPointsAttack.innerHTML = '';
+    els.heatmapPointsDefense.innerHTML = '';
 
-    let shotsToDraw = [];
-
-    if (heatmapMode === 'us') {
-        // Coletar todos os remates dos jogadores da Equipa A
-        store.state.gameData.A.players.forEach(p => {
-            if (p.history) {
-                p.history.forEach(shot => {
-                    if (shot.coords && shot.coords.x) {
-                        shotsToDraw.push(shot);
-                    }
-                });
-            }
-        });
-    } else {
-        // Coletar histórico da Equipa B
-        if (store.state.gameData.B.history) {
-            shotsToDraw = store.state.gameData.B.history.filter(s => s.coords && s.coords.x);
+    // 2. Desenhar Baliza Esquerda (ATAQUE - Nossos Remates)
+    store.state.gameData.A.players.forEach(p => {
+        if (p.history) {
+            p.history.forEach(shot => {
+                drawDot(els.heatmapPointsAttack, shot);
+            });
         }
-    }
-
-    shotsToDraw.forEach(shot => {
-        const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-        // As coordenadas foram guardadas em %, converter para viewBox (300x200)
-        circle.setAttribute("cx", (shot.coords.x / 100) * 300);
-        circle.setAttribute("cy", (shot.coords.y / 100) * 200);
-        circle.setAttribute("r", 6);
-        
-        // Cores
-        if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e"); // Verde
-        else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6"); // Azul
-        else circle.setAttribute("fill", "#ef4444"); // Vermelho (Fora/Poste)
-
-        circle.setAttribute("stroke", "white");
-        circle.setAttribute("stroke-width", "1");
-        circle.setAttribute("opacity", "0.8");
-        
-        container.appendChild(circle);
     });
+
+    // 3. Desenhar Baliza Direita (DEFESA - Remates Adversário)
+    if (store.state.gameData.B.history) {
+        store.state.gameData.B.history.forEach(shot => {
+            drawDot(els.heatmapPointsDefense, shot);
+        });
+    }
 }
 
-// ... Resto das funções (Reset, UI, Timers, Handle, etc) iguais ...
+function drawDot(container, shot) {
+    if (!shot.coords || !shot.coords.x) return;
+
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    // Converter % para viewBox 300x200
+    circle.setAttribute("cx", (shot.coords.x / 100) * 300);
+    circle.setAttribute("cy", (shot.coords.y / 100) * 200);
+    circle.setAttribute("r", 5);
+    
+    // Cores
+    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e"); // Verde
+    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6"); // Azul
+    else circle.setAttribute("fill", "#ef4444"); // Vermelho
+
+    circle.setAttribute("stroke", "white");
+    circle.setAttribute("stroke-width", "1");
+    circle.setAttribute("opacity", "0.9");
+    
+    container.appendChild(circle);
+}
+
+// ... Resto das funções (HandleSanction, Generic, TimeEvents, UI, Reset, etc) mantêm-se iguais ...
 
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
