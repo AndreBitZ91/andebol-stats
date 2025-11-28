@@ -19,6 +19,7 @@
             <h2 class="text-3xl font-bold text-blue-400 mb-4">Preparar Jogo</h2>
             
             <div class="space-y-4 mb-6">
+                <!-- Seleção de Duração -->
                 <div class="bg-gray-700 p-3 rounded-lg">
                     <p class="text-sm text-gray-300 mb-2 font-semibold">Duração da Parte:</p>
                     <div class="flex justify-center gap-6">
@@ -72,6 +73,7 @@
                 <div id="suspension-container" class="flex flex-col gap-1 text-xs"></div>
             </div>
             
+            <!-- Botões de Controlo do Tempo -->
             <div class="grid grid-cols-3 gap-4">
                 <button id="startBtn" class="btn-feedback bg-green-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Iniciar</button>
                 <button id="pauseBtn" class="btn-feedback bg-yellow-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Pausar</button>
@@ -90,44 +92,118 @@
             </div>
         </div>
 
-        <!-- Listas de Jogadores -->
-        <div class="grid md:grid-cols-2 gap-4">
-            <!-- Nossa Equipa -->
-            <div class="bg-gray-800 p-4 rounded-2xl">
-                <h3 class="text-xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2">Nossa Equipa</h3>
-                <div id="goalkeeper-list-A" class="space-y-2 mb-4"></div>
-                <div id="player-list-A" class="space-y-2"></div>
-            </div>
-            
-            <!-- Adversário -->
-            <div class="bg-gray-800 p-4 rounded-2xl">
-                <h3 class="text-xl font-bold text-orange-400 mb-4 border-b border-gray-700 pb-2">Adversário</h3>
-                
-                <div class="bg-gray-700 p-4 rounded-xl mb-4 flex flex-col gap-3">
-                    <p class="text-center font-bold text-lg text-white">Registo de Ações</p>
-                    <div class="flex justify-center gap-2">
-                        <button class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('shot', 'OPPONENT')">🎯</button>
-                        <button class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('positive', 'OPPONENT')">👍</button>
-                        <button class="bg-red-800 hover:bg-red-700 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('negative', 'OPPONENT')">👎</button>
-                        <button class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('sanction', 'OPPONENT')">⚠️</button>
-                    </div>
-                    <p class="text-center text-xs text-gray-400 mt-1">Remate | Positivo | Negativo | Sanção</p>
+        <!-- MENU DE ABAS (NOVO) -->
+        <div class="flex space-x-2 mb-4 overflow-x-auto pb-2 border-b border-gray-700">
+            <button class="tab-link active flex-1 py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-t-lg font-bold text-white border-b-4 border-blue-500 transition" data-tab="data">
+                📝 Dados
+            </button>
+            <button class="tab-link flex-1 py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-t-lg font-bold text-gray-400 hover:text-white transition" data-tab="stats">
+                📈 Estatística
+            </button>
+            <button class="tab-link flex-1 py-3 px-4 bg-gray-800 hover:bg-gray-700 rounded-t-lg font-bold text-gray-400 hover:text-white transition" data-tab="heatmap">
+                🔥 Heatmap
+            </button>
+        </div>
+
+        <!-- ABA 1: DADOS (O que já existia) -->
+        <div id="tab-data" class="tab-content block">
+            <div class="grid md:grid-cols-2 gap-4">
+                <!-- Nossa Equipa -->
+                <div class="bg-gray-800 p-4 rounded-2xl">
+                    <h3 class="text-xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2">Nossa Equipa</h3>
+                    <div id="goalkeeper-list-A" class="space-y-2 mb-4"></div>
+                    <div id="player-list-A" class="space-y-2"></div>
                 </div>
                 
-                <h4 class="text-lg font-bold text-gray-400 mt-6 mb-2">Últimos Eventos</h4>
-                <div id="timeline-list" class="text-xs text-gray-300 space-y-1 h-48 overflow-y-auto bg-gray-900 p-2 rounded"></div>
+                <!-- Adversário -->
+                <div class="bg-gray-800 p-4 rounded-2xl">
+                    <h3 class="text-xl font-bold text-orange-400 mb-4 border-b border-gray-700 pb-2">Adversário</h3>
+                    
+                    <div class="bg-gray-700 p-4 rounded-xl mb-4 flex flex-col gap-3">
+                        <p class="text-center font-bold text-lg text-white">Registo de Ações</p>
+                        <div class="flex justify-center gap-2">
+                            <button class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('shot', 'OPPONENT')">🎯</button>
+                            <button class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('positive', 'OPPONENT')">👍</button>
+                            <button class="bg-red-800 hover:bg-red-700 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('negative', 'OPPONENT')">👎</button>
+                            <button class="bg-yellow-600 hover:bg-yellow-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('sanction', 'OPPONENT')">⚠️</button>
+                        </div>
+                        <p class="text-center text-xs text-gray-400 mt-1">Remate | Positivo | Negativo | Sanção</p>
+                    </div>
+                    
+                    <h4 class="text-lg font-bold text-gray-400 mt-6 mb-2">Últimos Eventos</h4>
+                    <div id="timeline-list" class="text-xs text-gray-300 space-y-1 h-48 overflow-y-auto bg-gray-900 p-2 rounded"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 2: ESTATÍSTICA (NOVO) -->
+        <div id="tab-stats" class="tab-content hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
+                <h3 class="text-2xl font-bold text-center mb-6 text-white">Comparativo</h3>
+                
+                <div id="stats-comparison-container" class="space-y-6">
+                    <!-- Será preenchido via JS -->
+                </div>
+            </div>
+        </div>
+
+        <!-- ABA 3: HEATMAP (NOVO) -->
+        <div id="tab-heatmap" class="tab-content hidden">
+            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col items-center">
+                <h3 class="text-2xl font-bold text-center mb-4 text-white">Mapa de Remates</h3>
+                
+                <div class="flex space-x-4 mb-6">
+                    <button id="btn-heatmap-us" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold active-heatmap-filter">Nossos Remates</button>
+                    <button id="btn-heatmap-them" class="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg font-bold">Remates Adversário</button>
+                </div>
+
+                <div class="relative w-full max-w-2xl aspect-[3/2] bg-gray-900 border-2 border-white rounded-lg">
+                    <!-- SVG para Visualização (apenas leitura) -->
+                    <svg id="heatmapSvg" viewBox="0 0 300 200" class="w-full h-full">
+                        <!-- Fundo -->
+                        <rect x="0" y="0" width="300" height="200" fill="#1f2937" />
+                        <!-- Redes -->
+                        <defs>
+                            <pattern id="netPatternView" width="10" height="10" patternUnits="userSpaceOnUse">
+                                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
+                            </pattern>
+                        </defs>
+                        <rect x="10" y="10" width="280" height="190" fill="url(#netPatternView)" />
+                        
+                        <!-- Postes -->
+                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" />
+                        <rect x="40" y="0" width="40" height="10" fill="white" />
+                        <rect x="120" y="0" width="40" height="10" fill="white" />
+                        <rect x="200" y="0" width="40" height="10" fill="white" />
+                        
+                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="0" y="40" width="10" height="40" fill="white" />
+                        <rect x="0" y="120" width="10" height="40" fill="white" />
+                        
+                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="290" y="40" width="10" height="40" fill="white" />
+                        <rect x="290" y="120" width="10" height="40" fill="white" />
+
+                        <!-- Grupo onde as bolas serão desenhadas -->
+                        <g id="heatmap-points"></g>
+                    </svg>
+                </div>
+                
+                <div class="mt-4 flex gap-4 text-sm">
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Golo</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Defesa</div>
+                    <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span> Fora</div>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- === MODAIS === -->
-
-    <!-- Modal Remate (SEQUENCIAL + BALIZA SVG) -->
+    <!-- === MODAIS (MANTIDOS IGUAIS) === -->
+    <!-- Modal Remate -->
     <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl relative">
             <h3 class="text-xl font-bold mb-2 text-blue-400" id="shotPlayerName">Jogador</h3>
             
-            <!-- PASSO 1: TIPO DE REMATE -->
             <div id="shotTypeContainer" class="mb-4">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">1. Tipo de Remate</p>
                 <div class="grid grid-cols-3 gap-2">
@@ -141,7 +217,6 @@
                 </div>
             </div>
 
-            <!-- PASSO 2: ZONA (Inicialmente Oculto) -->
             <div id="shotZoneContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">2. Zona de Remate</p>
                 <div class="grid grid-cols-4 gap-2">
@@ -156,44 +231,32 @@
                 </div>
             </div>
 
-            <!-- PASSO 3: LOCAL NA BALIZA (NOVO) -->
             <div id="shotGoalContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">3. Local na Baliza (Clique)</p>
                 <div class="relative w-full h-48 bg-gray-900 border border-gray-600 rounded flex items-center justify-center cursor-crosshair group" id="goalSvgWrapper">
-                    <!-- SVG Baliza de Andebol -->
                     <svg id="goalSvg" viewBox="0 0 300 200" class="w-full h-full pointer-events-auto">
-                        <!-- Redes / Fundo -->
                         <defs>
                             <pattern id="netPattern" width="10" height="10" patternUnits="userSpaceOnUse">
                                 <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#333" stroke-width="0.5"/>
                             </pattern>
                         </defs>
                         <rect x="10" y="10" width="280" height="190" fill="url(#netPattern)" stroke="none" />
-                        
-                        <!-- Postes e Travessão (Vermelho e Branco) -->
-                        <!-- Travessão -->
-                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" /> <!-- Vermelho -->
+                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" />
                         <rect x="40" y="0" width="40" height="10" fill="white" />
                         <rect x="120" y="0" width="40" height="10" fill="white" />
                         <rect x="200" y="0" width="40" height="10" fill="white" />
-                        
-                        <!-- Poste Esquerdo -->
                         <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
                         <rect x="0" y="40" width="10" height="40" fill="white" />
                         <rect x="0" y="120" width="10" height="40" fill="white" />
-                        
-                        <!-- Poste Direito -->
                         <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
                         <rect x="290" y="40" width="10" height="40" fill="white" />
                         <rect x="290" y="120" width="10" height="40" fill="white" />
                     </svg>
-                    <!-- Marcador visual do clique (Bola) -->
                     <div id="shotMarker" class="absolute w-4 h-4 bg-yellow-400 rounded-full border-2 border-white shadow-md hidden transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
                 </div>
                 <p class="text-xs text-gray-500 mt-1">Toque onde a bola bateu/entrou</p>
             </div>
 
-            <!-- PASSO 4: RESULTADO -->
             <div id="shotOutcomeContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">4. Resultado</p>
                 <div class="grid grid-cols-1 gap-2">
@@ -207,7 +270,7 @@
         </div>
     </div>
 
-    <!-- Outros Modais (Sanções, etc) mantêm-se iguais -->
+    <!-- Outros Modais (Sanções, etc) -->
     <div id="sanctionsModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-500">Sanção Disciplinar</h3>
