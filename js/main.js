@@ -7,7 +7,7 @@ import { exportToExcel } from './export.js';
 let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
-let currentShotZone = null; // NOVO: Guarda a zona selecionada
+let currentShotZone = null;
 let els = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -146,11 +146,8 @@ function setupEventListeners() {
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
-    // Botões de Ação Rápida
-    document.getElementById('goalOpponentBtn')?.addEventListener('click', () => registerOpponentAction('goal'));
-    document.getElementById('saveOpponentBtn')?.addEventListener('click', () => registerOpponentAction('save'));
-    document.getElementById('missOpponentBtn')?.addEventListener('click', () => registerOpponentAction('miss'));
-    document.getElementById('twoMinOpponentBtn')?.addEventListener('click', () => registerOpponentAction('2min'));
+    // Remover listeners antigos dos botões removidos
+    // (Ações Adversário agora são via Modais)
 
     document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
@@ -170,35 +167,22 @@ function setupModals() {
     // 1. Seleção do Tipo de Remate (PASSO 1)
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Estilos
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
-            
-            // Lógica
             currentShotType = e.target.innerText;
-            
-            // Avançar para passo 2 (Mostrar Zonas)
             els.shotZoneContainer.classList.remove('hidden');
-            
-            // Reset passo 3 (Esconder Resultado se voltar atrás)
             els.shotOutcomeContainer.classList.add('hidden');
-            // Reset seleção visual das zonas
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
         });
     });
 
-    // 2. Seleção da Zona (PASSO 2) - NOVO
+    // 2. Seleção da Zona (PASSO 2)
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Estilos
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
-            
-            // Lógica
             currentShotZone = e.target.dataset.zone;
-            
-            // Avançar para passo 3 (Mostrar Resultado)
             els.shotOutcomeContainer.classList.remove('hidden');
         });
     });
@@ -230,7 +214,103 @@ function setupModals() {
     });
 }
 
-// ... Resto das Funções (Reset, ShowScreen, etc) mantêm-se iguais ...
+function handleShotOutcome(outcome) {
+    store.update(s => {
+        const typeKey = currentShotType || 'Default';
+        const zoneKey = currentShotZone || '0'; 
+        
+        // Lógica para ADVERSÁRIO (OPPONENT)
+        if (currentPersonForAction === 'OPPONENT') {
+            if (outcome === 'goal') {
+                s.gameData.B.stats.goals++;
+                s.gameData.A.stats.gkGoalsAgainst++;
+                logGameEvent(s, 'B', 'shot', `Golo Adversário (${typeKey}, Z${zoneKey})`);
+            } else if (outcome === 'saved') {
+                s.gameData.B.stats.savedShots++;
+                s.gameData.A.stats.gkSaves++;
+                logGameEvent(s, 'B', 'shot', `Defesa GR (${typeKey}, Z${zoneKey})`);
+            } else if (outcome === 'miss') {
+                s.gameData.B.stats.misses++;
+                logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey}, Z${zoneKey})`);
+            }
+        } 
+        // Lógica para a TUA EQUIPA
+        else {
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+
+            if(outcome === 'goal') { p.goals++; s.gameData.A.stats.goals++; }
+            if(outcome === 'miss') s.gameData.A.stats.misses++;
+            if(outcome === 'saved') s.gameData.A.stats.savedShots++;
+
+            const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
+            const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
+            p.performanceScore = (p.performanceScore || 0) + points;
+
+            logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
+        }
+    });
+    els.shotModal.classList.add('hidden');
+    refreshUI();
+}
+
+function handleSanctionOutcome(type) {
+    store.update(s => {
+        if (currentPersonForAction === 'OPPONENT') {
+            if (type === '2min') {
+                s.gameData.B.isSuspended = true;
+                s.gameData.B.suspensionTimer = 120;
+            }
+            logGameEvent(s, 'B', 'sanction', `Adversário: ${type}`);
+        } else {
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+
+            if (type === 'yellow') p.sanctions.yellow++;
+            if (type === 'red') { p.sanctions.red++; p.onCourt = false; }
+            if (type === '2min') {
+                p.sanctions.twoMin++;
+                p.isSuspended = true;
+                p.suspensionTimer = 120;
+                p.onCourt = false;
+            }
+            logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
+        }
+    });
+    els.sanctionsModal.classList.add('hidden');
+    refreshUI();
+}
+
+function handleGenericAction(action, type) {
+    store.update(s => {
+        if (currentPersonForAction === 'OPPONENT') {
+            if(type === 'negative') {
+                if(action === 'technical_fault') s.gameData.B.stats.technical_faults++;
+                if(action === 'turnover') s.gameData.B.stats.turnovers++;
+            }
+            logGameEvent(s, 'B', action, `Adversário: ${action}`);
+        } else {
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+
+            const points = POINT_SYSTEM.field_player[`${type}_actions`][action] || 0;
+            p.performanceScore = (p.performanceScore || 0) + points;
+
+            if(type === 'negative') {
+                p.negativeActions.push({ action, time: s.totalSeconds });
+                if(action === 'technical_fault') s.gameData.A.stats.technical_faults++;
+            } else {
+                p.positiveActions.push({ action, time: s.totalSeconds });
+            }
+            logGameEvent(s, 'A', action, `${p.Nome}: ${action}`);
+        }
+    });
+    els.positiveModal.classList.add('hidden');
+    els.negativeModal.classList.add('hidden');
+    refreshUI();
+}
+
+// ... Resto das Funções Auxiliares (Reset, UI, Timers) mantêm-se iguais ...
 
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
@@ -243,81 +323,6 @@ function handleReset() {
 function showWelcomeScreen() {
     if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
     if(els.mainApp) els.mainApp.classList.add('hidden');
-}
-
-function handleShotOutcome(outcome) {
-    store.update(s => {
-        const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-        if(!p) return;
-
-        if(outcome === 'goal') { p.goals++; s.gameData.A.stats.goals++; }
-        if(outcome === 'miss') s.gameData.A.stats.misses++;
-        if(outcome === 'saved') s.gameData.A.stats.savedShots++;
-
-        const typeKey = currentShotType || 'Default';
-        const zoneKey = currentShotZone || '0'; // Guardar zona
-        const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
-        
-        const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
-        p.performanceScore = (p.performanceScore || 0) + points;
-
-        // Log mais detalhado com a zona
-        logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
-    });
-    els.shotModal.classList.add('hidden');
-    refreshUI();
-}
-
-function handleSanctionOutcome(type) {
-    store.update(s => {
-        const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-        if(!p) return;
-
-        if (type === 'yellow') p.sanctions.yellow++;
-        if (type === 'red') { p.sanctions.red++; p.onCourt = false; }
-        if (type === '2min') {
-            p.sanctions.twoMin++;
-            p.isSuspended = true;
-            p.suspensionTimer = 120;
-            p.onCourt = false;
-        }
-        logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
-    });
-    els.sanctionsModal.classList.add('hidden');
-    refreshUI();
-}
-
-function handleGenericAction(action, type) {
-    store.update(s => {
-        const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-        if(!p) return;
-
-        const points = POINT_SYSTEM.field_player[`${type}_actions`][action] || 0;
-        p.performanceScore = (p.performanceScore || 0) + points;
-
-        if(type === 'negative') {
-            p.negativeActions.push({ action, time: s.totalSeconds });
-            if(action === 'technical_fault') s.gameData.A.stats.technical_faults = (s.gameData.A.stats.technical_faults || 0) + 1;
-        } else {
-            p.positiveActions.push({ action, time: s.totalSeconds });
-        }
-        logGameEvent(s, 'A', action, `${p.Nome}: ${action}`);
-    });
-    els.positiveModal.classList.add('hidden');
-    els.negativeModal.classList.add('hidden');
-    refreshUI();
-}
-
-function registerOpponentAction(action) {
-    store.update(s => {
-        if (action === 'goal') { s.gameData.B.stats.goals++; s.gameData.A.stats.gkGoalsAgainst++; }
-        if (action === 'save') { s.gameData.B.stats.gkSaves++; s.gameData.A.stats.savedShots++; }
-        if (action === 'miss') { s.gameData.B.stats.misses++; }
-        if (action === '2min') { s.gameData.B.isSuspended = true; s.gameData.B.suspensionTimer = 120; }
-        
-        logGameEvent(s, 'B', action, `Adversário: ${action}`);
-    });
-    refreshUI();
 }
 
 function checkTimeEvents(totalSeconds) {
@@ -347,23 +352,28 @@ function checkTimeEvents(totalSeconds) {
     }
 
     let needsUpdate = false;
+    // Suspensões Equipa A
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
             p.suspensionTimer--;
             if (p.suspensionTimer <= 0) p.isSuspended = false;
             needsUpdate = true;
         }
-        if (p.onCourt) {
-            p.timeOnCourt++;
-            const timeEl = document.getElementById(`time-p-${p.Numero}`);
-            if (timeEl) timeEl.textContent = formatTime(p.timeOnCourt);
-        }
+        if (p.onCourt) p.timeOnCourt++;
     });
+    // Suspensões Adversário
+    if(store.state.gameData.B.isSuspended && store.state.gameData.B.suspensionTimer > 0) {
+        store.state.gameData.B.suspensionTimer--;
+        if(store.state.gameData.B.suspensionTimer <= 0) store.state.gameData.B.isSuspended = false;
+        needsUpdate = true;
+    }
+
     if(needsUpdate) updateSuspensionsDisplay();
 }
 
 function updateSuspensionsDisplay() {
     els.suspensionContainer.innerHTML = '';
+    // Equipa A
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
             const div = document.createElement('div');
@@ -372,6 +382,13 @@ function updateSuspensionsDisplay() {
             els.suspensionContainer.appendChild(div);
         }
     });
+    // Equipa B
+    if(store.state.gameData.B.isSuspended && store.state.gameData.B.suspensionTimer > 0) {
+        const div = document.createElement('div');
+        div.className = 'bg-orange-700 px-2 py-1 rounded text-white font-bold animate-pulse';
+        div.textContent = `ADV - ${formatTime(store.state.gameData.B.suspensionTimer)}`;
+        els.suspensionContainer.appendChild(div);
+    }
 }
 
 function refreshUI() {
@@ -485,21 +502,25 @@ window.togglePlayer = (num) => {
 
 window.openModal = (type, num) => {
     currentPersonForAction = num;
-    const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
-    const name = p ? p.Nome : '';
+    // Se for 'OPPONENT', não procura jogador, apenas define o nome do modal
+    if (num === 'OPPONENT') {
+        document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
+    } else {
+        const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
+        const name = p ? p.Nome : '';
+        document.getElementById('shotPlayerName').textContent = name;
+    }
+
+    // Reset visual
+    document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    els.shotZoneContainer.classList.add('hidden');
+    els.shotOutcomeContainer.classList.add('hidden');
+    currentShotType = null;
+    currentShotZone = null;
 
     if(type === 'shot') {
-        document.getElementById('shotPlayerName').textContent = name;
         els.shotModal.classList.remove('hidden');
-        
-        // RESETAR MODAL DE REMATE PARA O ESTADO INICIAL
-        document.getElementById('shotZoneContainer').classList.add('hidden');
-        document.getElementById('shotOutcomeContainer').classList.add('hidden');
-        document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-        document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-        currentShotType = null;
-        currentShotZone = null;
-
     } else if(type === 'sanction') {
         els.sanctionsModal.classList.remove('hidden');
     } else if(type === 'positive') {
