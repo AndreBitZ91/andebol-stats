@@ -92,7 +92,7 @@
             </div>
         </div>
 
-        <!-- MENU DE ABAS (NOVO) -->
+        <!-- MENU DE ABAS -->
         <div class="flex space-x-2 mb-4 overflow-x-auto pb-2 border-b border-gray-700">
             <button class="tab-link active flex-1 py-3 px-4 bg-gray-700 hover:bg-gray-600 rounded-t-lg font-bold text-white border-b-4 border-blue-500 transition" data-tab="data">
                 📝 Dados
@@ -105,7 +105,7 @@
             </button>
         </div>
 
-        <!-- ABA 1: DADOS (O que já existia) -->
+        <!-- ABA 1: DADOS -->
         <div id="tab-data" class="tab-content block">
             <div class="grid md:grid-cols-2 gap-4">
                 <!-- Nossa Equipa -->
@@ -136,63 +136,70 @@
             </div>
         </div>
 
-        <!-- ABA 2: ESTATÍSTICA (NOVO) -->
+        <!-- ABA 2: ESTATÍSTICA (COMPARATIVO DIRETO) -->
         <div id="tab-stats" class="tab-content hidden">
             <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
-                <h3 class="text-2xl font-bold text-center mb-6 text-white">Comparativo</h3>
+                <h3 class="text-2xl font-bold text-center mb-6 text-white">Comparativo Direto</h3>
                 
-                <div id="stats-comparison-container" class="space-y-6">
-                    <!-- Será preenchido via JS -->
+                <div id="stats-comparison-container" class="space-y-0 divide-y divide-gray-700">
+                    <!-- O JavaScript vai inserir aqui as linhas de comparação -->
                 </div>
             </div>
         </div>
 
-        <!-- ABA 3: HEATMAP (NOVO) -->
+        <!-- ABA 3: HEATMAP (COMPARATIVO DIRETO BALIZAS) -->
         <div id="tab-heatmap" class="tab-content hidden">
-            <div class="bg-gray-800 p-6 rounded-2xl shadow-lg flex flex-col items-center">
-                <h3 class="text-2xl font-bold text-center mb-4 text-white">Mapa de Remates</h3>
+            <div class="bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg">
+                <h3 class="text-2xl font-bold text-center mb-6 text-white">Mapa de Remates</h3>
                 
-                <div class="flex space-x-4 mb-6">
-                    <button id="btn-heatmap-us" class="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold active-heatmap-filter">Nossos Remates</button>
-                    <button id="btn-heatmap-them" class="px-4 py-2 bg-gray-700 text-gray-300 rounded-lg font-bold">Remates Adversário</button>
-                </div>
-
-                <div class="relative w-full max-w-2xl aspect-[3/2] bg-gray-900 border-2 border-white rounded-lg">
-                    <!-- SVG para Visualização (apenas leitura) -->
-                    <svg id="heatmapSvg" viewBox="0 0 300 200" class="w-full h-full">
-                        <!-- Fundo -->
-                        <rect x="0" y="0" width="300" height="200" fill="#1f2937" />
-                        <!-- Redes -->
-                        <defs>
-                            <pattern id="netPatternView" width="10" height="10" patternUnits="userSpaceOnUse">
-                                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
-                            </pattern>
-                        </defs>
-                        <rect x="10" y="10" width="280" height="190" fill="url(#netPatternView)" />
-                        
-                        <!-- Postes -->
-                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" />
-                        <rect x="40" y="0" width="40" height="10" fill="white" />
-                        <rect x="120" y="0" width="40" height="10" fill="white" />
-                        <rect x="200" y="0" width="40" height="10" fill="white" />
-                        
-                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
-                        <rect x="0" y="40" width="10" height="40" fill="white" />
-                        <rect x="0" y="120" width="10" height="40" fill="white" />
-                        
-                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
-                        <rect x="290" y="40" width="10" height="40" fill="white" />
-                        <rect x="290" y="120" width="10" height="40" fill="white" />
-
-                        <!-- Grupo onde as bolas serão desenhadas -->
-                        <g id="heatmap-points"></g>
-                    </svg>
-                </div>
-                
-                <div class="mt-4 flex gap-4 text-sm">
+                <!-- Legenda -->
+                <div class="flex justify-center gap-6 text-sm mb-6 bg-gray-900 p-2 rounded-lg">
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Golo</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Defesa</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span> Fora</div>
+                </div>
+
+                <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Baliza Esquerda: Nossos Remates (Ataque) -->
+                    <div class="flex flex-col items-center">
+                        <h4 class="text-blue-400 font-bold text-lg mb-2">ATAQUE (Nossos Remates)</h4>
+                        <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-blue-500/50 rounded-lg">
+                            <svg viewBox="0 0 300 200" class="w-full h-full">
+                                <!-- Desenho da Baliza (Reutilizável) -->
+                                <defs>
+                                    <pattern id="netPatternView1" width="10" height="10" patternUnits="userSpaceOnUse">
+                                        <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
+                                    </pattern>
+                                </defs>
+                                <rect x="10" y="10" width="280" height="190" fill="url(#netPatternView1)" />
+                                <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
+                                <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
+                                <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
+                                <!-- Pontos -->
+                                <g id="heatmap-points-attack"></g>
+                            </svg>
+                        </div>
+                    </div>
+
+                    <!-- Baliza Direita: Remates Adversário (Defesa) -->
+                    <div class="flex flex-col items-center">
+                        <h4 class="text-orange-400 font-bold text-lg mb-2">DEFESA (Remates Sofridos)</h4>
+                        <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-orange-500/50 rounded-lg">
+                            <svg viewBox="0 0 300 200" class="w-full h-full">
+                                <defs>
+                                    <pattern id="netPatternView2" width="10" height="10" patternUnits="userSpaceOnUse">
+                                        <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
+                                    </pattern>
+                                </defs>
+                                <rect x="10" y="10" width="280" height="190" fill="url(#netPatternView2)" />
+                                <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
+                                <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
+                                <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
+                                <!-- Pontos -->
+                                <g id="heatmap-points-defense"></g>
+                            </svg>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
