@@ -8,6 +8,7 @@ let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
 let currentShotZone = null;
+let currentShotCoords = null; // NOVO: Coordenadas do remate
 let els = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -38,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (elementos anteriores)
+        // ... (elementos existentes)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -60,7 +61,6 @@ function initDOMElements() {
         teamAName: document.getElementById('teamAName'),
         teamBName: document.getElementById('teamBName'),
         
-        // Novos Elementos para Correção de Tempo
         editTimerBtn: document.getElementById('editTimerBtn'),
         correctionModal: document.getElementById('correctionModal'),
         correctMin: document.getElementById('correctMin'),
@@ -68,9 +68,12 @@ function initDOMElements() {
         saveCorrectionBtn: document.getElementById('saveCorrectionBtn'),
         closeCorrectionBtn: document.getElementById('closeCorrectionBtn'),
 
-        // Elementos do Novo Modal Sequencial
+        // Elementos do Modal Sequencial
         shotZoneContainer: document.getElementById('shotZoneContainer'),
-        shotOutcomeContainer: document.getElementById('shotOutcomeContainer')
+        shotGoalContainer: document.getElementById('shotGoalContainer'), // NOVO
+        shotOutcomeContainer: document.getElementById('shotOutcomeContainer'),
+        goalSvg: document.getElementById('goalSvg'), // NOVO
+        shotMarker: document.getElementById('shotMarker') // NOVO
     };
 }
 
@@ -89,7 +92,6 @@ function setupEventListeners() {
         });
     }
 
-    // Cronómetro: Iniciar
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
@@ -102,18 +104,15 @@ function setupEventListeners() {
 
         timer.start(); 
         store.update(s => s.isRunning = true); 
-        
         if(els.editTimerBtn) els.editTimerBtn.disabled = true;
     });
 
-    // Cronómetro: Pausar
     document.getElementById('pauseBtn')?.addEventListener('click', () => { 
         timer.pause(store.state.totalSeconds); 
         store.update(s => s.isRunning = false); 
         if(els.editTimerBtn) els.editTimerBtn.disabled = false;
     });
 
-    // Eventos de Correção
     if(els.editTimerBtn) {
         els.editTimerBtn.addEventListener('click', () => {
             if (store.state.isRunning) return;
@@ -146,9 +145,6 @@ function setupEventListeners() {
     document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
     document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
 
-    // Remover listeners antigos dos botões removidos
-    // (Ações Adversário agora são via Modais)
-
     document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
@@ -164,34 +160,68 @@ function setupEventListeners() {
 }
 
 function setupModals() {
-    // 1. Seleção do Tipo de Remate (PASSO 1)
+    // 1. Tipo de Remate (Passo 1)
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             currentShotType = e.target.innerText;
+            
+            // Avança para Zonas
             els.shotZoneContainer.classList.remove('hidden');
+            els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
+            
+            // Reset seleções seguintes
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
+            currentShotCoords = null;
+            els.shotMarker.classList.add('hidden');
         });
     });
 
-    // 2. Seleção da Zona (PASSO 2)
+    // 2. Zona de Campo (Passo 2)
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             currentShotZone = e.target.dataset.zone;
-            els.shotOutcomeContainer.classList.remove('hidden');
+            
+            // Avança para Baliza SVG (Passo 3)
+            els.shotGoalContainer.classList.remove('hidden');
+            els.shotOutcomeContainer.classList.add('hidden');
         });
     });
 
-    // 3. Resultado Final (PASSO 3)
+    // 3. Clique na Baliza SVG (Passo 3) - NOVO
+    if (els.goalSvg) {
+        els.goalSvg.addEventListener('click', (e) => {
+            const rect = els.goalSvg.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            // Converter para percentagem (para ser responsivo e usar em heatmaps)
+            const xPercent = (x / rect.width) * 100;
+            const yPercent = (y / rect.height) * 100;
+            
+            currentShotCoords = { x: xPercent.toFixed(1), y: yPercent.toFixed(1) };
+
+            // Mostrar bolinha amarela onde clicou
+            els.shotMarker.style.left = x + 'px';
+            els.shotMarker.style.top = y + 'px';
+            els.shotMarker.classList.remove('hidden');
+
+            // Avança para Resultado (Passo 4)
+            els.shotOutcomeContainer.classList.remove('hidden');
+        });
+    }
+
+    // 4. Resultado Final (Passo 4)
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
 
+    // Outros Modais
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
@@ -214,12 +244,26 @@ function setupModals() {
     });
 }
 
+function handleReset() {
+    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
+    if (confirmacao) {
+        sessionStorage.clear(); 
+        window.location.reload();
+    }
+}
+
+function showWelcomeScreen() {
+    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
+    if(els.mainApp) els.mainApp.classList.add('hidden');
+}
+
 function handleShotOutcome(outcome) {
     store.update(s => {
         const typeKey = currentShotType || 'Default';
-        const zoneKey = currentShotZone || '0'; 
+        const zoneKey = currentShotZone || '0';
+        // Guarda as coordenadas para heatmap futuro
+        const coords = currentShotCoords || { x: 0, y: 0 }; 
         
-        // Lógica para ADVERSÁRIO (OPPONENT)
         if (currentPersonForAction === 'OPPONENT') {
             if (outcome === 'goal') {
                 s.gameData.B.stats.goals++;
@@ -233,9 +277,7 @@ function handleShotOutcome(outcome) {
                 s.gameData.B.stats.misses++;
                 logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey}, Z${zoneKey})`);
             }
-        } 
-        // Lógica para a TUA EQUIPA
-        else {
+        } else {
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
 
@@ -247,12 +289,24 @@ function handleShotOutcome(outcome) {
             const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
             p.performanceScore = (p.performanceScore || 0) + points;
 
+            // Adiciona o remate completo com coordenadas ao histórico do jogador
+            if (!p.history) p.history = [];
+            p.history.push({
+                type: typeKey,
+                zone: zoneKey,
+                coords: coords,
+                outcome: outcome,
+                time: s.totalSeconds
+            });
+
             logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
         }
     });
     els.shotModal.classList.add('hidden');
     refreshUI();
 }
+
+// ... Resto das funções mantêm-se iguais (Sanction, Generic, TimeEvents, UI, etc) ...
 
 function handleSanctionOutcome(type) {
     store.update(s => {
@@ -310,21 +364,6 @@ function handleGenericAction(action, type) {
     refreshUI();
 }
 
-// ... Resto das Funções Auxiliares (Reset, UI, Timers) mantêm-se iguais ...
-
-function handleReset() {
-    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
-    if (confirmacao) {
-        sessionStorage.clear(); 
-        window.location.reload();
-    }
-}
-
-function showWelcomeScreen() {
-    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
-    if(els.mainApp) els.mainApp.classList.add('hidden');
-}
-
 function checkTimeEvents(totalSeconds) {
     if (!store.state.isRunning) return;
 
@@ -352,7 +391,6 @@ function checkTimeEvents(totalSeconds) {
     }
 
     let needsUpdate = false;
-    // Suspensões Equipa A
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
             p.suspensionTimer--;
@@ -361,7 +399,6 @@ function checkTimeEvents(totalSeconds) {
         }
         if (p.onCourt) p.timeOnCourt++;
     });
-    // Suspensões Adversário
     if(store.state.gameData.B.isSuspended && store.state.gameData.B.suspensionTimer > 0) {
         store.state.gameData.B.suspensionTimer--;
         if(store.state.gameData.B.suspensionTimer <= 0) store.state.gameData.B.isSuspended = false;
@@ -373,7 +410,6 @@ function checkTimeEvents(totalSeconds) {
 
 function updateSuspensionsDisplay() {
     els.suspensionContainer.innerHTML = '';
-    // Equipa A
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
             const div = document.createElement('div');
@@ -382,7 +418,6 @@ function updateSuspensionsDisplay() {
             els.suspensionContainer.appendChild(div);
         }
     });
-    // Equipa B
     if(store.state.gameData.B.isSuspended && store.state.gameData.B.suspensionTimer > 0) {
         const div = document.createElement('div');
         div.className = 'bg-orange-700 px-2 py-1 rounded text-white font-bold animate-pulse';
@@ -471,7 +506,6 @@ function renderPlayers() {
 
 // --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
-    // 1. Verificações de Jogo
     const duration = store.state.halfDuration || 30; // 30 ou 25
     const limit = (duration === 25) ? 6 : 7; // Limite de jogadores em campo
 
@@ -483,7 +517,6 @@ window.togglePlayer = (num) => {
             return;
         }
 
-        // Se vai ENTRAR em campo (!onCourt), verifica se já atingiu o limite
         if (!player.onCourt) {
             const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
             if (playersOnCourt >= limit) {
@@ -502,7 +535,6 @@ window.togglePlayer = (num) => {
 
 window.openModal = (type, num) => {
     currentPersonForAction = num;
-    // Se for 'OPPONENT', não procura jogador, apenas define o nome do modal
     if (num === 'OPPONENT') {
         document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
     } else {
@@ -516,8 +548,12 @@ window.openModal = (type, num) => {
     document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     els.shotZoneContainer.classList.add('hidden');
     els.shotOutcomeContainer.classList.add('hidden');
+    els.shotGoalContainer.classList.add('hidden'); // Reset novo container
+    els.shotMarker.classList.add('hidden'); // Esconder marcador
+    
     currentShotType = null;
     currentShotZone = null;
+    currentShotCoords = null;
 
     if(type === 'shot') {
         els.shotModal.classList.remove('hidden');
