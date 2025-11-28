@@ -19,7 +19,6 @@
             <h2 class="text-3xl font-bold text-blue-400 mb-4">Preparar Jogo</h2>
             
             <div class="space-y-4 mb-6">
-                <!-- Seleção de Duração -->
                 <div class="bg-gray-700 p-3 rounded-lg">
                     <p class="text-sm text-gray-300 mb-2 font-semibold">Duração da Parte:</p>
                     <div class="flex justify-center gap-6">
@@ -104,11 +103,9 @@
             <div class="bg-gray-800 p-4 rounded-2xl">
                 <h3 class="text-xl font-bold text-orange-400 mb-4 border-b border-gray-700 pb-2">Adversário</h3>
                 
-                <!-- Ações do Adversário (NOVO DESIGN) -->
                 <div class="bg-gray-700 p-4 rounded-xl mb-4 flex flex-col gap-3">
                     <p class="text-center font-bold text-lg text-white">Registo de Ações</p>
                     <div class="flex justify-center gap-2">
-                        <!-- Botões iguais aos jogadores -->
                         <button class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('shot', 'OPPONENT')">🎯</button>
                         <button class="bg-teal-600 hover:bg-teal-500 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('positive', 'OPPONENT')">👍</button>
                         <button class="bg-red-800 hover:bg-red-700 text-white px-4 py-3 rounded-lg text-xl" onclick="window.openModal('negative', 'OPPONENT')">👎</button>
@@ -125,9 +122,9 @@
 
     <!-- === MODAIS === -->
 
-    <!-- Modal Remate (SEQUENCIAL) -->
+    <!-- Modal Remate (SEQUENCIAL + BALIZA SVG) -->
     <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl">
+        <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl relative">
             <h3 class="text-xl font-bold mb-2 text-blue-400" id="shotPlayerName">Jogador</h3>
             
             <!-- PASSO 1: TIPO DE REMATE -->
@@ -159,9 +156,46 @@
                 </div>
             </div>
 
-            <!-- PASSO 3: RESULTADO (Inicialmente Oculto) -->
+            <!-- PASSO 3: LOCAL NA BALIZA (NOVO) -->
+            <div id="shotGoalContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">3. Local na Baliza (Clique)</p>
+                <div class="relative w-full h-48 bg-gray-900 border border-gray-600 rounded flex items-center justify-center cursor-crosshair group" id="goalSvgWrapper">
+                    <!-- SVG Baliza de Andebol -->
+                    <svg id="goalSvg" viewBox="0 0 300 200" class="w-full h-full pointer-events-auto">
+                        <!-- Redes / Fundo -->
+                        <defs>
+                            <pattern id="netPattern" width="10" height="10" patternUnits="userSpaceOnUse">
+                                <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#333" stroke-width="0.5"/>
+                            </pattern>
+                        </defs>
+                        <rect x="10" y="10" width="280" height="190" fill="url(#netPattern)" stroke="none" />
+                        
+                        <!-- Postes e Travessão (Vermelho e Branco) -->
+                        <!-- Travessão -->
+                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" /> <!-- Vermelho -->
+                        <rect x="40" y="0" width="40" height="10" fill="white" />
+                        <rect x="120" y="0" width="40" height="10" fill="white" />
+                        <rect x="200" y="0" width="40" height="10" fill="white" />
+                        
+                        <!-- Poste Esquerdo -->
+                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="0" y="40" width="10" height="40" fill="white" />
+                        <rect x="0" y="120" width="10" height="40" fill="white" />
+                        
+                        <!-- Poste Direito -->
+                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="290" y="40" width="10" height="40" fill="white" />
+                        <rect x="290" y="120" width="10" height="40" fill="white" />
+                    </svg>
+                    <!-- Marcador visual do clique (Bola) -->
+                    <div id="shotMarker" class="absolute w-4 h-4 bg-yellow-400 rounded-full border-2 border-white shadow-md hidden transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
+                </div>
+                <p class="text-xs text-gray-500 mt-1">Toque onde a bola bateu/entrou</p>
+            </div>
+
+            <!-- PASSO 4: RESULTADO -->
             <div id="shotOutcomeContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
-                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">3. Resultado</p>
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">4. Resultado</p>
                 <div class="grid grid-cols-1 gap-2">
                     <button data-outcome="goal" class="shot-outcome-btn bg-green-600 hover:bg-green-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">GOLO ⚽</button>
                     <button data-outcome="saved" class="shot-outcome-btn bg-blue-600 hover:bg-blue-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">DEFESA GR 🧤</button>
@@ -173,7 +207,7 @@
         </div>
     </div>
 
-    <!-- Modal Sanções -->
+    <!-- Outros Modais (Sanções, etc) mantêm-se iguais -->
     <div id="sanctionsModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-500">Sanção Disciplinar</h3>
@@ -186,7 +220,6 @@
         </div>
     </div>
 
-    <!-- Modal Ações Positivas -->
     <div id="positiveActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-green-400">Ação Positiva</h3>
@@ -199,7 +232,6 @@
         </div>
     </div>
 
-    <!-- Modal Ações Negativas -->
     <div id="negativeActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-400">Ação Negativa</h3>
@@ -212,7 +244,6 @@
         </div>
     </div>
 
-    <!-- Modal Correção de Tempo -->
     <div id="correctionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center border border-blue-500">
             <h3 class="text-xl font-bold mb-6 text-white">Corrigir Tempo</h3>
