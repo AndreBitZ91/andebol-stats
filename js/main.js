@@ -7,6 +7,7 @@ import { exportToExcel } from './export.js';
 let timer;
 let currentPersonForAction = null;
 let currentShotType = null;
+let currentShotZone = null; // NOVO: Guarda a zona selecionada
 let els = {}; 
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -22,11 +23,9 @@ document.addEventListener('DOMContentLoaded', () => {
     
     if (hasSavedGame) {
         initUI();
-        // Restaurar estado correto do botão Corrigir
         if (!store.state.isRunning && store.state.totalSeconds > 0) {
             if(els.editTimerBtn) els.editTimerBtn.disabled = false;
         }
-        // Sincronizar o timer interno com o estado guardado
         if (timer && !store.state.isRunning) {
             timer.elapsedPaused = store.state.totalSeconds;
         }
@@ -67,7 +66,11 @@ function initDOMElements() {
         correctMin: document.getElementById('correctMin'),
         correctSec: document.getElementById('correctSec'),
         saveCorrectionBtn: document.getElementById('saveCorrectionBtn'),
-        closeCorrectionBtn: document.getElementById('closeCorrectionBtn')
+        closeCorrectionBtn: document.getElementById('closeCorrectionBtn'),
+
+        // Elementos do Novo Modal Sequencial
+        shotZoneContainer: document.getElementById('shotZoneContainer'),
+        shotOutcomeContainer: document.getElementById('shotOutcomeContainer')
     };
 }
 
@@ -86,7 +89,7 @@ function setupEventListeners() {
         });
     }
 
-    // Cronómetro: Iniciar com Validação de Jogadores
+    // Cronómetro: Iniciar
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
@@ -110,48 +113,25 @@ function setupEventListeners() {
         if(els.editTimerBtn) els.editTimerBtn.disabled = false;
     });
 
-    // Eventos do Modal de Correção de Tempo
+    // Eventos de Correção
     if(els.editTimerBtn) {
         els.editTimerBtn.addEventListener('click', () => {
-            if (store.state.isRunning) return; // Segurança extra
-            
-            // Preencher inputs com o tempo atual
+            if (store.state.isRunning) return;
             const total = store.state.totalSeconds;
-            const min = Math.floor(total / 60);
-            const sec = total % 60;
-            
-            // Força a atualização dos valores dos inputs
-            els.correctMin.value = min;
-            els.correctSec.value = sec;
-            
+            els.correctMin.value = Math.floor(total / 60);
+            els.correctSec.value = total % 60;
             els.correctionModal.classList.remove('hidden');
         });
     }
 
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
-            // CORREÇÃO AQUI: Assegurar que atualizamos o timer.elapsedPaused
             const min = parseInt(els.correctMin.value) || 0;
             const sec = parseInt(els.correctSec.value) || 0;
             const newTotalSeconds = (min * 60) + sec;
-            
-            // 1. Atualizar o Store (Estado Global)
             store.update(s => s.totalSeconds = newTotalSeconds);
-            
-            // 2. Atualizar o Timer Interno (Classe GameTimer)
-            // Se tiver o método setTime, usa-o. Senão, define a propriedade diretamente.
-            if (timer) {
-                if (typeof timer.setTime === 'function') {
-                    timer.setTime(newTotalSeconds);
-                } else {
-                    timer.elapsedPaused = newTotalSeconds; // Fallback crucial
-                }
-            }
-            
-            // 3. Atualizar o Ecrã Imediatamente
+            if (timer) timer.elapsedPaused = newTotalSeconds;
             updateDisplay();
-            
-            // Fechar modal
             els.correctionModal.classList.add('hidden');
         });
     }
@@ -187,16 +167,47 @@ function setupEventListeners() {
 }
 
 function setupModals() {
+    // 1. Seleção do Tipo de Remate (PASSO 1)
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
+            // Estilos
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
+            
+            // Lógica
             currentShotType = e.target.innerText;
+            
+            // Avançar para passo 2 (Mostrar Zonas)
+            els.shotZoneContainer.classList.remove('hidden');
+            
+            // Reset passo 3 (Esconder Resultado se voltar atrás)
+            els.shotOutcomeContainer.classList.add('hidden');
+            // Reset seleção visual das zonas
+            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+            currentShotZone = null;
         });
     });
+
+    // 2. Seleção da Zona (PASSO 2) - NOVO
+    document.querySelectorAll('.shot-zone-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            // Estilos
+            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+            e.target.classList.replace('bg-gray-700', 'bg-blue-600');
+            
+            // Lógica
+            currentShotZone = e.target.dataset.zone;
+            
+            // Avançar para passo 3 (Mostrar Resultado)
+            els.shotOutcomeContainer.classList.remove('hidden');
+        });
+    });
+
+    // 3. Resultado Final (PASSO 3)
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
+
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
@@ -218,6 +229,8 @@ function setupModals() {
         };
     });
 }
+
+// ... Resto das Funções (Reset, ShowScreen, etc) mantêm-se iguais ...
 
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
@@ -242,11 +255,14 @@ function handleShotOutcome(outcome) {
         if(outcome === 'saved') s.gameData.A.stats.savedShots++;
 
         const typeKey = currentShotType || 'Default';
+        const zoneKey = currentShotZone || '0'; // Guardar zona
         const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
+        
         const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
         p.performanceScore = (p.performanceScore || 0) + points;
 
-        logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey})`);
+        // Log mais detalhado com a zona
+        logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
     });
     els.shotModal.classList.add('hidden');
     refreshUI();
@@ -339,7 +355,6 @@ function checkTimeEvents(totalSeconds) {
         }
         if (p.onCourt) {
             p.timeOnCourt++;
-            // Atualiza visualmente o tempo do jogador em tempo real
             const timeEl = document.getElementById(`time-p-${p.Numero}`);
             if (timeEl) timeEl.textContent = formatTime(p.timeOnCourt);
         }
@@ -476,6 +491,15 @@ window.openModal = (type, num) => {
     if(type === 'shot') {
         document.getElementById('shotPlayerName').textContent = name;
         els.shotModal.classList.remove('hidden');
+        
+        // RESETAR MODAL DE REMATE PARA O ESTADO INICIAL
+        document.getElementById('shotZoneContainer').classList.add('hidden');
+        document.getElementById('shotOutcomeContainer').classList.add('hidden');
+        document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+        document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+        currentShotType = null;
+        currentShotZone = null;
+
     } else if(type === 'sanction') {
         els.sanctionsModal.classList.remove('hidden');
     } else if(type === 'positive') {
