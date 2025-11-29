@@ -30,7 +30,6 @@ document.addEventListener('DOMContentLoaded', () => {
         if (timer && !store.state.isRunning) {
             timer.elapsedPaused = store.state.totalSeconds;
         }
-        // Assegurar histórico adversário
         if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
     } else {
         showWelcomeScreen();
@@ -76,7 +75,6 @@ function initDOMElements() {
         goalSvg: document.getElementById('goalSvg'),
         shotMarker: document.getElementById('shotMarker'),
 
-        // ABAS NOVAS
         tabData: document.getElementById('tab-data'),
         tabStats: document.getElementById('tab-stats'),
         tabHeatmap: document.getElementById('tab-heatmap'),
@@ -102,10 +100,8 @@ function setupEventListeners() {
         });
     }
 
-    // Lógica de Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            // Reset Estilos
             document.querySelectorAll('.tab-link').forEach(b => {
                 b.classList.remove('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
                 b.classList.add('bg-gray-800', 'text-gray-400');
@@ -114,7 +110,6 @@ function setupEventListeners() {
             clicked.classList.remove('bg-gray-800', 'text-gray-400');
             clicked.classList.add('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
 
-            // Mostrar Conteúdo
             const tabName = clicked.dataset.tab;
             document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
             document.getElementById(`tab-${tabName}`).classList.remove('hidden');
@@ -189,6 +184,7 @@ function setupEventListeners() {
 }
 
 function setupModals() {
+    // 1. Tipo
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -199,23 +195,28 @@ function setupModals() {
             els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
             
-            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+            // Reset Zonas SVG
+            document.querySelectorAll('.zone-path').forEach(p => p.classList.remove('selected'));
             currentShotZone = null;
             currentShotCoords = null;
             els.shotMarker.classList.add('hidden');
         });
     });
 
-    document.querySelectorAll('.shot-zone-btn').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-            e.target.classList.replace('bg-gray-700', 'bg-blue-600');
+    // 2. Zona (SVG)
+    // Usamos Delegation ou querySelectorAll nas paths
+    document.querySelectorAll('.zone-path').forEach(path => {
+        path.addEventListener('click', (e) => {
+            document.querySelectorAll('.zone-path').forEach(p => p.classList.remove('selected'));
+            e.target.classList.add('selected');
+            
             currentShotZone = e.target.dataset.zone;
             els.shotGoalContainer.classList.remove('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
         });
     });
 
+    // 3. SVG Baliza Click
     if (els.goalSvg) {
         els.goalSvg.addEventListener('click', (e) => {
             const rect = els.goalSvg.getBoundingClientRect();
@@ -269,14 +270,14 @@ function handleShotOutcome(outcome) {
             if (outcome === 'goal') {
                 s.gameData.B.stats.goals++;
                 s.gameData.A.stats.gkGoalsAgainst++;
-                logGameEvent(s, 'B', 'shot', `Golo Adversário (${typeKey})`);
+                logGameEvent(s, 'B', 'shot', `Golo Adversário (${typeKey}, Z${zoneKey})`);
             } else if (outcome === 'saved') {
                 s.gameData.B.stats.savedShots++;
                 s.gameData.A.stats.gkSaves++;
-                logGameEvent(s, 'B', 'shot', `Defesa GR (${typeKey})`);
+                logGameEvent(s, 'B', 'shot', `Defesa GR (${typeKey}, Z${zoneKey})`);
             } else if (outcome === 'miss') {
                 s.gameData.B.stats.misses++;
-                logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey})`);
+                logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey}, Z${zoneKey})`);
             }
             
             if (!s.gameData.B.history) s.gameData.B.history = [];
@@ -297,7 +298,7 @@ function handleShotOutcome(outcome) {
             if (!p.history) p.history = [];
             p.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
 
-            logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey})`);
+            logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
         }
     });
     els.shotModal.classList.add('hidden');
@@ -322,9 +323,6 @@ function updateStatsTab() {
     const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
         ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
 
-    const teamYellowA = store.state.gameData.A.players.reduce((sum, p) => sum + p.sanctions.yellow, 0);
-    const teamYellowB = store.state.gameData.B.isSuspended ? 1 : 0; // Simplificação visual para adversário
-
     const rows = [
         { label: "Golos", valA: statsA.goals, valB: statsB.goals },
         { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
@@ -336,7 +334,7 @@ function updateStatsTab() {
     let html = '';
     rows.forEach(row => {
         html += `
-            <div class="grid grid-cols-3 items-center text-center py-4">
+            <div class="grid grid-cols-3 items-center text-center border-b border-gray-700 py-3">
                 <div class="text-xl font-bold text-blue-400">${row.valA}</div>
                 <div class="text-sm text-gray-400 font-medium uppercase tracking-wide">${row.label}</div>
                 <div class="text-xl font-bold text-orange-400">${row.valB}</div>
@@ -356,11 +354,9 @@ function updateStatsTab() {
 }
 
 function updateHeatmapTab() {
-    // 1. Limpar Pontos
     els.heatmapPointsAttack.innerHTML = '';
     els.heatmapPointsDefense.innerHTML = '';
 
-    // 2. Desenhar Baliza Esquerda (ATAQUE - Nossos Remates)
     store.state.gameData.A.players.forEach(p => {
         if (p.history) {
             p.history.forEach(shot => {
@@ -369,7 +365,6 @@ function updateHeatmapTab() {
         }
     });
 
-    // 3. Desenhar Baliza Direita (DEFESA - Remates Adversário)
     if (store.state.gameData.B.history) {
         store.state.gameData.B.history.forEach(shot => {
             drawDot(els.heatmapPointsDefense, shot);
@@ -381,15 +376,13 @@ function drawDot(container, shot) {
     if (!shot.coords || !shot.coords.x) return;
 
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    // Converter % para viewBox 300x200
     circle.setAttribute("cx", (shot.coords.x / 100) * 300);
     circle.setAttribute("cy", (shot.coords.y / 100) * 200);
     circle.setAttribute("r", 5);
     
-    // Cores
-    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e"); // Verde
-    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6"); // Azul
-    else circle.setAttribute("fill", "#ef4444"); // Vermelho
+    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
+    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
+    else circle.setAttribute("fill", "#ef4444");
 
     circle.setAttribute("stroke", "white");
     circle.setAttribute("stroke-width", "1");
@@ -398,7 +391,7 @@ function drawDot(container, shot) {
     container.appendChild(circle);
 }
 
-// ... Resto das funções (HandleSanction, Generic, TimeEvents, UI, Reset, etc) mantêm-se iguais ...
+// ... Resto das funções (Reset, UI, Timers, Handle, etc) mantêm-se iguais ...
 
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
