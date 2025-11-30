@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (elementos existentes)
+        // ... (elementos mantidos)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -80,7 +80,9 @@ function initDOMElements() {
         tabHeatmap: document.getElementById('tab-heatmap'),
         statsComparisonContainer: document.getElementById('stats-comparison-container'),
         heatmapPointsAttack: document.getElementById('heatmap-points-attack'),
-        heatmapPointsDefense: document.getElementById('heatmap-points-defense')
+        heatmapPointsDefense: document.getElementById('heatmap-points-defense'),
+        btnHeatmapUs: document.getElementById('btn-heatmap-us'),
+        btnHeatmapThem: document.getElementById('btn-heatmap-them')
     };
 }
 
@@ -100,6 +102,7 @@ function setupEventListeners() {
         });
     }
 
+    // Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -119,6 +122,7 @@ function setupEventListeners() {
         });
     });
 
+    // Cronómetro
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
@@ -195,20 +199,19 @@ function setupModals() {
             els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
             
-            // Reset Zonas SVG
-            document.querySelectorAll('.zone-path').forEach(p => p.classList.remove('selected'));
+            // Reset Botões de Zona
+            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
             currentShotCoords = null;
             els.shotMarker.classList.add('hidden');
         });
     });
 
-    // 2. Zona (SVG)
-    // Usamos Delegation ou querySelectorAll nas paths
-    document.querySelectorAll('.zone-path').forEach(path => {
-        path.addEventListener('click', (e) => {
-            document.querySelectorAll('.zone-path').forEach(p => p.classList.remove('selected'));
-            e.target.classList.add('selected');
+    // 2. Zona (Botões) - MODIFICADO
+    document.querySelectorAll('.shot-zone-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+            e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             
             currentShotZone = e.target.dataset.zone;
             els.shotGoalContainer.classList.remove('hidden');
