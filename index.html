@@ -10,31 +10,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
-    <style>
-        /* Estilo para as zonas do campo interativo */
-        .zone-path {
-            fill: #374151; /* gray-700 */
-            stroke: #ffffff;
-            stroke-width: 1;
-            transition: all 0.2s;
-            cursor: pointer;
-        }
-        .zone-path:hover {
-            fill: #4b5563; /* gray-600 */
-        }
-        .zone-path.selected {
-            fill: #2563eb; /* blue-600 */
-            stroke: #60a5fa; /* blue-400 */
-            stroke-width: 2;
-        }
-        .zone-label {
-            pointer-events: none;
-            fill: white;
-            font-size: 14px;
-            font-weight: bold;
-            text-anchor: middle;
-        }
-    </style>
 </head>
 <body class="bg-gray-900 text-white antialiased">
 
@@ -102,6 +77,7 @@
             <div class="grid grid-cols-3 gap-4">
                 <button id="startBtn" class="btn-feedback bg-green-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Iniciar</button>
                 <button id="pauseBtn" class="btn-feedback bg-yellow-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Pausar</button>
+                <!-- Botão de Correção (Bloqueado por defeito) -->
                 <button id="editTimerBtn" class="btn-feedback bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed text-white font-bold py-4 rounded-xl text-lg md:text-xl" disabled>Corrigir</button>
             </div>
             
@@ -165,7 +141,10 @@
         <div id="tab-stats" class="tab-content hidden">
             <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <h3 class="text-2xl font-bold text-center mb-6 text-white">Comparativo Direto</h3>
-                <div id="stats-comparison-container" class="space-y-0 divide-y divide-gray-700"></div>
+                
+                <div id="stats-comparison-container" class="space-y-0 divide-y divide-gray-700">
+                    <!-- O JavaScript vai inserir aqui as linhas de comparação -->
+                </div>
             </div>
         </div>
 
@@ -173,16 +152,21 @@
         <div id="tab-heatmap" class="tab-content hidden">
             <div class="bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg">
                 <h3 class="text-2xl font-bold text-center mb-6 text-white">Mapa de Remates</h3>
+                
+                <!-- Legenda -->
                 <div class="flex justify-center gap-6 text-sm mb-6 bg-gray-900 p-2 rounded-lg">
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Golo</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Defesa</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span> Fora</div>
                 </div>
+
                 <div class="grid md:grid-cols-2 gap-8">
+                    <!-- Baliza Esquerda: Nossos Remates (Ataque) -->
                     <div class="flex flex-col items-center">
                         <h4 class="text-blue-400 font-bold text-lg mb-2">ATAQUE (Nossos Remates)</h4>
                         <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-blue-500/50 rounded-lg">
                             <svg viewBox="0 0 300 200" class="w-full h-full">
+                                <!-- Desenho da Baliza (Reutilizável) -->
                                 <defs>
                                     <pattern id="netPatternView1" width="10" height="10" patternUnits="userSpaceOnUse">
                                         <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
@@ -192,10 +176,13 @@
                                 <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
                                 <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
                                 <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
+                                <!-- Pontos -->
                                 <g id="heatmap-points-attack"></g>
                             </svg>
                         </div>
                     </div>
+
+                    <!-- Baliza Direita: Remates Adversário (Defesa) -->
                     <div class="flex flex-col items-center">
                         <h4 class="text-orange-400 font-bold text-lg mb-2">DEFESA (Remates Sofridos)</h4>
                         <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-orange-500/50 rounded-lg">
@@ -209,6 +196,7 @@
                                 <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
                                 <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
                                 <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
+                                <!-- Pontos -->
                                 <g id="heatmap-points-defense"></g>
                             </svg>
                         </div>
@@ -220,7 +208,7 @@
 
     <!-- === MODAIS === -->
 
-    <!-- Modal Remate (SEQUENCIAL ATUALIZADO) -->
+    <!-- Modal Remate (SEQUENCIAL ATUALIZADO COM BOTÕES DE ZONA) -->
     <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <h3 class="text-xl font-bold mb-2 text-blue-400" id="shotPlayerName">Jogador</h3>
@@ -239,63 +227,18 @@
                 </div>
             </div>
 
-            <!-- PASSO 2: ZONA (SVG DO MEIO CAMPO - NOVO!) -->
+            <!-- PASSO 2: ZONA (GRELHA DE BOTÕES) -->
             <div id="shotZoneContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
-                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">2. Zona de Remate (Selecione)</p>
-                <div class="relative w-full aspect-[4/3] bg-gray-900 border border-gray-600 rounded">
-                    <!-- SVG Meio Campo -->
-                    <svg viewBox="0 0 400 300" class="w-full h-full">
-                        <!-- Fundo -->
-                        <rect x="0" y="0" width="400" height="300" fill="#1f2937" />
-                        
-                        <!-- Linhas do Campo (Esquemático Meio Campo) -->
-                        <!-- Linha de Fundo -->
-                        <line x1="0" y1="300" x2="400" y2="300" stroke="white" stroke-width="2" />
-                        <!-- Baliza -->
-                        <rect x="185" y="295" width="30" height="5" fill="white" />
-                        
-                        <!-- Área 6m (Semicírculo) -->
-                        <path d="M 50 300 A 150 150 0 0 1 350 300" fill="#111827" stroke="white" stroke-width="2" />
-                        <!-- Linha 9m (Tracejado) -->
-                        <path d="M 20 300 A 180 180 0 0 1 380 300" fill="none" stroke="white" stroke-width="2" stroke-dasharray="5,5" />
-
-                        <!-- ZONAS CLICKÁVEIS (Polígonos Invisíveis) -->
-                        
-                        <!-- Zona 1: Ponta Esquerda (Canto Inf Esq) -->
-                        <path d="M 0 300 L 0 150 L 80 200 L 50 300 Z" class="zone-path" data-zone="1" />
-                        
-                        <!-- Zona 2: Lateral Esq (6-9m) -->
-                        <path d="M 50 300 A 150 150 0 0 1 140 180 L 120 150 A 180 180 0 0 0 20 300 Z" class="zone-path" data-zone="2" />
-                        
-                        <!-- Zona 3: Central (6-9m) -->
-                        <path d="M 140 180 A 150 150 0 0 1 260 180 L 280 150 A 180 180 0 0 0 120 150 Z" class="zone-path" data-zone="3" />
-                        
-                        <!-- Zona 4: Lateral Dir (6-9m) -->
-                        <path d="M 260 180 A 150 150 0 0 1 350 300 L 380 300 A 180 180 0 0 0 280 150 Z" class="zone-path" data-zone="4" />
-                        
-                        <!-- Zona 5: Ponta Direita (Canto Inf Dir) -->
-                        <path d="M 400 300 L 400 150 L 320 200 L 350 300 Z" class="zone-path" data-zone="5" />
-                        
-                        <!-- Zona 6: Lateral Esq (Fora 9m) -->
-                        <path d="M 0 0 L 133 0 L 133 130 L 0 130 Z" class="zone-path" data-zone="6" opacity="0" /> <!-- Simplificado: Topo Esquerdo -->
-                        <path d="M 20 300 A 180 180 0 0 1 120 150 L 80 50 L 0 50 L 0 300 Z" class="zone-path" data-zone="6" />
-
-                        <!-- Zona 7: Central (Fora 9m) -->
-                        <path d="M 120 150 A 180 180 0 0 1 280 150 L 280 50 L 120 50 Z" class="zone-path" data-zone="7" />
-                        
-                        <!-- Zona 8: Lateral Dir (Fora 9m) -->
-                        <path d="M 280 150 A 180 180 0 0 1 380 300 L 400 300 L 400 50 L 320 50 Z" class="zone-path" data-zone="8" />
-
-                        <!-- Labels das Zonas -->
-                        <text x="25" y="280" class="zone-label">1</text>
-                        <text x="80" y="260" class="zone-label">2</text>
-                        <text x="200" y="200" class="zone-label">3</text>
-                        <text x="320" y="260" class="zone-label">4</text>
-                        <text x="375" y="280" class="zone-label">5</text>
-                        <text x="50" y="100" class="zone-label">6</text>
-                        <text x="200" y="80" class="zone-label">7</text>
-                        <text x="350" y="100" class="zone-label">8</text>
-                    </svg>
+                <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">2. Zona de Remate</p>
+                <div class="grid grid-cols-4 gap-2">
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="1">1</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="2">2</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="3">3</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="4">4</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="5">5</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="6">6</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="7">7</button>
+                    <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="8">8</button>
                 </div>
             </div>
 
@@ -310,9 +253,16 @@
                             </pattern>
                         </defs>
                         <rect x="10" y="10" width="280" height="190" fill="url(#netPattern)" stroke="none" />
-                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
-                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
-                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
+                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" />
+                        <rect x="40" y="0" width="40" height="10" fill="white" />
+                        <rect x="120" y="0" width="40" height="10" fill="white" />
+                        <rect x="200" y="0" width="40" height="10" fill="white" />
+                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="0" y="40" width="10" height="40" fill="white" />
+                        <rect x="0" y="120" width="10" height="40" fill="white" />
+                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
+                        <rect x="290" y="40" width="10" height="40" fill="white" />
+                        <rect x="290" y="120" width="10" height="40" fill="white" />
                     </svg>
                     <div id="shotMarker" class="absolute w-4 h-4 bg-yellow-400 rounded-full border-2 border-white shadow-md hidden transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
                 </div>
@@ -333,7 +283,7 @@
         </div>
     </div>
 
-    <!-- Outros Modais (Sanções, etc) -->
+    <!-- Modal Sanções -->
     <div id="sanctionsModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-500">Sanção Disciplinar</h3>
@@ -346,6 +296,7 @@
         </div>
     </div>
 
+    <!-- Modal Ações Positivas -->
     <div id="positiveActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-green-400">Ação Positiva</h3>
@@ -358,6 +309,7 @@
         </div>
     </div>
 
+    <!-- Modal Ações Negativas -->
     <div id="negativeActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-400">Ação Negativa</h3>
@@ -370,6 +322,7 @@
         </div>
     </div>
 
+    <!-- Modal Correção de Tempo -->
     <div id="correctionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center border border-blue-500">
             <h3 class="text-xl font-bold mb-6 text-white">Corrigir Tempo</h3>
