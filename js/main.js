@@ -40,7 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (elementos mantidos)
+        // ... (elementos existentes)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -102,7 +102,6 @@ function setupEventListeners() {
         });
     }
 
-    // Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -122,14 +121,16 @@ function setupEventListeners() {
         });
     });
 
-    // Cronómetro
     document.getElementById('startBtn')?.addEventListener('click', () => { 
+        // Lógica de Validação de Início também considera suspensões
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
-        const requiredPlayers = (duration === 25) ? 6 : 7;
+        const baseRequired = (duration === 25) ? 6 : 7;
+        const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+        const requiredPlayers = baseRequired - suspendedCount;
 
         if (playersOnCourt !== requiredPlayers) {
-            alert(`⚠️ Atenção: Para ${duration} min, deve ter ${requiredPlayers} jogadores em campo.`);
+            alert(`⚠️ Atenção: Para ${duration} min com ${suspendedCount} suspensões ativas, deve ter ${requiredPlayers} jogadores em campo.`);
             return; 
         }
         timer.start(); 
@@ -188,7 +189,6 @@ function setupEventListeners() {
 }
 
 function setupModals() {
-    // 1. Tipo
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -199,7 +199,6 @@ function setupModals() {
             els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
             
-            // Reset Botões de Zona
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
             currentShotCoords = null;
@@ -207,19 +206,16 @@ function setupModals() {
         });
     });
 
-    // 2. Zona (Botões) - MODIFICADO
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
-            
             currentShotZone = e.target.dataset.zone;
             els.shotGoalContainer.classList.remove('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
         });
     });
 
-    // 3. SVG Baliza Click
     if (els.goalSvg) {
         els.goalSvg.addEventListener('click', (e) => {
             const rect = els.goalSvg.getBoundingClientRect();
@@ -282,10 +278,8 @@ function handleShotOutcome(outcome) {
                 s.gameData.B.stats.misses++;
                 logGameEvent(s, 'B', 'shot', `Remate Fora Adv (${typeKey}, Z${zoneKey})`);
             }
-            
             if (!s.gameData.B.history) s.gameData.B.history = [];
             s.gameData.B.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
-
         } else {
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
@@ -394,8 +388,6 @@ function drawDot(container, shot) {
     container.appendChild(circle);
 }
 
-// ... Resto das funções (Reset, UI, Timers, Handle, etc) mantêm-se iguais ...
-
 function handleReset() {
     const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
     if (confirmacao) {
@@ -422,7 +414,13 @@ function handleSanctionOutcome(type) {
             if(!p) return;
 
             if (type === 'yellow') p.sanctions.yellow++;
-            if (type === 'red') { p.sanctions.red++; p.onCourt = false; }
+            // ALTERAÇÃO: Red Card agora desencadeia lógica de suspensão
+            if (type === 'red') { 
+                p.sanctions.red++; 
+                p.onCourt = false;
+                p.isSuspended = true; // Equipa fica com menos um
+                p.suspensionTimer = 120; 
+            }
             if (type === '2min') {
                 p.sanctions.twoMin++;
                 p.isSuspended = true;
@@ -533,7 +531,6 @@ function refreshUI() {
     updateTeamStats();
     renderTimeline();
     updateSuspensionsDisplay();
-    // Atualiza abas se visíveis
     if(!els.tabStats.classList.contains('hidden')) updateStatsTab();
     if(!els.tabHeatmap.classList.contains('hidden')) updateHeatmapTab();
 }
@@ -611,7 +608,11 @@ function renderPlayers() {
 // --- Funções Globais (Bridge) ---
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; // 30 ou 25
-    const limit = (duration === 25) ? 6 : 7; // Limite de jogadores em campo
+    const baseLimit = (duration === 25) ? 6 : 7;
+    
+    // Contar suspensões ativas para reduzir o limite
+    const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+    const currentLimit = baseLimit - suspendedCount;
 
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
     
@@ -621,10 +622,11 @@ window.togglePlayer = (num) => {
             return;
         }
 
+        // Se vai ENTRAR em campo (!onCourt), verifica se já atingiu o limite reduzido
         if (!player.onCourt) {
             const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-            if (playersOnCourt >= limit) {
-                alert(`⚠️ Limite de ${limit} jogadores em campo atingido!\n(Modo de jogo: ${duration} minutos).`);
+            if (playersOnCourt >= currentLimit) {
+                alert(`⚠️ Limite atingido!\n\nCapacidade atual: ${currentLimit} jogadores.\n(Devido a ${suspendedCount} suspensões ativas).`);
                 return;
             }
         }
