@@ -1,4 +1,4 @@
-// js/main.js - Versão Final com Credenciais Google Configuradas
+// js/main.js - Versão Final com Correções no Google Drive
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -9,7 +9,7 @@ const GOOGLE_API_KEY = 'AIzaSyAW0ZAImkHQ3XVbIHWitzD1vhpz08GKs_Q';
 const GOOGLE_CLIENT_ID = '250165264222-fo1fnfija65ol7f5k8iv5c2v6q5cj1d2.apps.googleusercontent.com';
 const GOOGLE_APP_ID = '250165264222'; 
 
-// Scope 'drive.file' permite abrir apenas ficheiros que o utilizador seleciona (Mais Seguro)
+// Scope 'drive.file' permite abrir apenas ficheiros que o utilizador seleciona
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 let timer;
@@ -29,6 +29,8 @@ document.addEventListener('DOMContentLoaded', () => {
     // Inicializar Google API
     if (typeof gapi !== 'undefined') {
         gapi.load('client:picker', initializeGapiClient);
+    } else {
+        console.error("Biblioteca GAPI não carregou. Verifique a conexão à internet.");
     }
 
     timer = new GameTimer((seconds) => {
@@ -143,7 +145,6 @@ function setupEventListeners() {
         });
     }
 
-    // Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -309,43 +310,50 @@ async function initializeGapiClient() {
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         });
         gapiInited = true;
+        console.log("GAPI inicializada com sucesso.");
     } catch(err) {
         console.error("Erro ao inicializar GAPI:", err);
     }
 }
 
 function handleGoogleDriveClick() {
-    // Inicializar cliente de token (GIS)
+    // Se ainda não estiver inicializado, tenta de novo ou avisa
+    if (!gapiInited) {
+        alert("A aguardar inicialização da Google API... tente novamente em 2 segundos.");
+        return;
+    }
+
     tokenClient = google.accounts.oauth2.initTokenClient({
         client_id: GOOGLE_CLIENT_ID,
         scope: GOOGLE_SCOPE,
         callback: async (response) => {
             if (response.error !== undefined) {
-                console.error(response);
+                console.error("Erro no Login Google:", response);
                 alert("Erro na autenticação Google.");
-                throw (response);
+                return;
             }
+            
+            // CORREÇÃO CRÍTICA: Configurar token no gapi.client para downloads
+            if (gapi.client) {
+                gapi.client.setToken({ access_token: response.access_token });
+            }
+            
             createPicker(response.access_token);
         },
     });
     
-    if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({prompt: 'consent'});
-    } else {
-        tokenClient.requestAccessToken({prompt: ''});
-    }
+    tokenClient.requestAccessToken({prompt: ''});
 }
 
 function createPicker(accessToken) {
-    if (!gapiInited) {
-        alert("A API Google ainda não carregou totalmente. Tente novamente em alguns segundos.");
-        return;
-    }
-
+    const view = new google.picker.View(google.picker.ViewId.SPREADSHEETS);
+    view.setMimeTypes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel");
+    
     const picker = new google.picker.PickerBuilder()
-        .addView(google.picker.ViewId.SPREADSHEETS)
+        .addView(view)
         .setOAuthToken(accessToken)
         .setDeveloperKey(GOOGLE_API_KEY)
+        .setAppId(GOOGLE_APP_ID)
         .setCallback(pickerCallback)
         .build();
     picker.setVisible(true);
@@ -356,32 +364,39 @@ async function pickerCallback(data) {
         const fileId = data.docs[0].id;
         const fileName = data.docs[0].name;
         
+        console.log(`Ficheiro selecionado: ${fileName} (${fileId})`);
+
         try {
+            // Usa a API Drive para obter o conteúdo
             const response = await gapi.client.drive.files.get({
                 fileId: fileId,
                 alt: 'media',
-            }, { responseType: 'arraybuffer' }); 
+            }, { responseType: 'arraybuffer' }); // Importante para SheetJS
             
-            const arrayBuffer = response.body; 
-            // Converting string to ArrayBuffer if needed (GAPI specific quirk)
+            // Tratar resposta (ArrayBuffer)
+            // Em algumas versões gapi, response.body pode ser string crua
             let bytes;
-            if (typeof arrayBuffer === 'string') {
-                const len = arrayBuffer.length;
+            if (response.body && typeof response.body === 'string') {
+                // Converter string binária para Uint8Array
+                const len = response.body.length;
                 bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) bytes[i] = arrayBuffer.charCodeAt(i);
+                for (let i = 0; i < len; i++) {
+                    bytes[i] = response.body.charCodeAt(i);
+                }
             } else {
-                bytes = new Uint8Array(arrayBuffer);
+                // Se já vier correto como ArrayBuffer no result
+                // Nota: dependendo da versão gapi, pode estar em response.result ou response.body
+                bytes = new Uint8Array(response.body || response.result);
             }
             
             processWorkbook(bytes, fileName);
 
         } catch (err) {
-            console.error("Erro ao baixar do Drive", err);
-            alert("Erro ao baixar ficheiro. Verifique se tem permissões.");
+            console.error("Erro ao baixar do Drive:", err);
+            alert(`Erro ao baixar ficheiro: ${err.message || err.result?.error?.message || 'Verifique a consola'}`);
         }
     }
 }
-
 
 // --- Lógica de Ficheiros Unificada ---
 
@@ -438,7 +453,7 @@ function processWorkbook(data, fileName) {
             jsonOff.forEach(row => {
                 let id = '';
                 if (row.Posicao && String(row.Posicao).trim().length <= 2) {
-                    id = String(row.Posicao).trim(); // Posicao é o ID (Letra)
+                    id = String(row.Posicao).trim(); 
                 } else if (row.Numero) {
                     id = String(row.Numero).trim();
                 }
