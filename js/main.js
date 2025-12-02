@@ -284,7 +284,7 @@ function setupModals() {
     });
 }
 
-// --- Funções de Gestão de Plantel (CORRIGIDA) ---
+// --- Funções de Gestão de Plantel (ATUALIZADA PARA LER ABA "OFICIAIS") ---
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
@@ -301,34 +301,60 @@ function handleFileSelect(e) {
             try {
                 const data = new Uint8Array(evt.target.result);
                 const workbook = XLSX.read(data, {type: 'array'});
-                const sheet = workbook.Sheets[workbook.SheetNames[0]];
-                const json = XLSX.utils.sheet_to_json(sheet);
                 
                 // Reset temp roster
                 tempRoster = { players: [], officials: [] };
 
-                json.forEach(row => {
-                    const num = row.Numero ? String(row.Numero).trim() : '';
-                    const nome = row.Nome || '';
-                    const pos = row.Posicao || '';
+                // Procurar aba de Oficiais
+                const sheetNames = workbook.SheetNames;
+                const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
+                
+                // Assume que a primeira aba é a de jogadores, a menos que seja explicitamente a de oficiais (caso raro)
+                let jogadoresSheetName = sheetNames[0];
+                if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
+                    jogadoresSheetName = sheetNames[1];
+                }
 
-                    // Heurística simples
-                    const isOfficial = num.match(/^[A-Z]$/i) || 
-                                     (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
+                // 1. Ler Jogadores
+                if (jogadoresSheetName) {
+                    const jsonJogadores = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
+                    jsonJogadores.forEach(row => {
+                        const num = row.Numero ? String(row.Numero).trim() : '';
+                        const nome = row.Nome || '';
+                        const pos = row.Posicao || '';
+                        
+                        // Se não houver aba separada, usamos a heurística para separar aqui
+                        if (!oficiaisSheetName) {
+                            const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
+                            if (isOfficial) {
+                                tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
+                            } else {
+                                tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
+                            }
+                        } else {
+                            // Se houver aba separada, tudo aqui é jogador
+                            tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
+                        }
+                    });
+                }
 
-                    if (isOfficial) {
+                // 2. Ler Oficiais (Se aba existir)
+                if (oficiaisSheetName) {
+                    const jsonOficiais = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
+                    jsonOficiais.forEach(row => {
+                        const num = row.Numero ? String(row.Numero).trim() : '';
+                        const nome = row.Nome || '';
+                        const pos = row.Posicao || 'Oficial';
                         tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
-                    } else {
-                        tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
-                    }
-                });
+                    });
+                }
 
                 // Mostrar Modal
                 renderRosterEdit();
                 els.rosterModal.classList.remove('hidden');
             } catch (err) {
                 console.error("Erro ao processar Excel:", err);
-                alert("Erro ao ler os dados do Excel. Verifique se tem as colunas: Numero, Nome, Posicao");
+                alert("Erro ao ler os dados do Excel. Certifique-se que tem abas de Jogadores e/ou Oficiais.");
             }
         };
         reader.readAsArrayBuffer(file);
@@ -342,6 +368,7 @@ function renderRosterEdit() {
     els.rosterPlayersBody.innerHTML = '';
     els.rosterOfficialsBody.innerHTML = '';
 
+    // Jogadores
     tempRoster.players.forEach((p, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -353,6 +380,7 @@ function renderRosterEdit() {
         els.rosterPlayersBody.appendChild(tr);
     });
 
+    // Oficiais
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -474,8 +502,8 @@ function renderPlayers() {
     renderOfficials();
 }
 
-// ... (Resto das funções - OpenModal, TogglePlayer, Handlers, etc - mantêm-se) ...
-// COPIAR RESTANTE CÓDIGO DO PASSO ANTERIOR
+// ... (Resto das funções - TogglePlayer, OpenModal, Handlers - mantêm-se inalteradas) ...
+// COPIAR RESTANTE CÓDIGO
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; 
     const baseLimit = (duration === 25) ? 6 : 7;
@@ -710,7 +738,12 @@ function handleSanctionOutcome(type) {
             if(!p) return;
 
             if (type === 'yellow') p.sanctions.yellow++;
-            if (type === 'red') { p.sanctions.red++; p.onCourt = false; p.isSuspended = true; p.suspensionTimer = 120; }
+            if (type === 'red') { 
+                p.sanctions.red++; 
+                p.onCourt = false;
+                p.isSuspended = true; 
+                p.suspensionTimer = 120; 
+            }
             if (type === '2min') {
                 p.sanctions.twoMin++;
                 p.isSuspended = true;
