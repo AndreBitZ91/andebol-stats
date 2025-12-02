@@ -5,9 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Análise de Andebol - Profissional</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Bibliotecas Excel/PDF -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    
+    <!-- Bibliotecas Google Drive API -->
+    <script async defer src="https://apis.google.com/js/api.js"></script>
+    <script async defer src="https://accounts.google.com/gsi/client"></script>
+
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -34,9 +41,27 @@
                     </div>
                 </div>
 
-                <input type="file" id="welcome-file-input-A" class="hidden" accept=".xlsx">
-                <label for="welcome-file-input-A" class="cursor-pointer w-full block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg">Carregar Plantel (.xlsx)</label>
-                <p id="file-name-A" class="text-sm text-gray-500 h-5">Nenhum ficheiro selecionado</p>
+                <!-- Opções de Carregamento -->
+                <div class="space-y-3">
+                    <!-- Opção 1: Ficheiro Local -->
+                    <div>
+                        <input type="file" id="welcome-file-input-A" class="hidden" accept=".xlsx">
+                        <label for="welcome-file-input-A" class="cursor-pointer w-full block bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                            <span>📁</span> Carregar Ficheiro Local (.xlsx)
+                        </label>
+                    </div>
+
+                    <!-- Opção 2: Google Drive -->
+                    <div>
+                        <button id="googleDriveBtn" class="w-full block bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2">
+                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-5 h-5" alt="Drive">
+                            Carregar do Google Drive
+                        </button>
+                    </div>
+                    
+                    <p id="file-name-A" class="text-sm text-gray-500 h-5 truncate">Nenhum ficheiro selecionado</p>
+                </div>
+
                 <input type="text" id="welcome-team-b-name" placeholder="Nome do Adversário" class="w-full bg-gray-700 text-white text-center p-3 rounded-lg">
             </div>
             
@@ -44,69 +69,7 @@
         </div>
     </div>
 
-    <!-- NOVO MODAL: Gestão de Plantel (Confirmar/Editar) -->
-    <div id="rosterModal" class="hidden fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
-        <div class="bg-gray-800 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl border border-gray-700">
-            <div class="p-6 border-b border-gray-700 flex justify-between items-center">
-                <h2 class="text-2xl font-bold text-white">Confirmar Plantel</h2>
-                <button id="closeRosterBtn" class="text-gray-400 hover:text-white">&times;</button>
-            </div>
-            
-            <div class="flex-1 overflow-y-auto p-6 space-y-8">
-                <!-- Secção Jogadores -->
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-blue-400">Jogadores</h3>
-                        <button id="addPlayerBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold">+ Adicionar</button>
-                    </div>
-                    <div class="bg-gray-900 rounded-lg p-2">
-                        <table class="w-full text-left text-sm text-gray-300">
-                            <thead class="text-xs uppercase bg-gray-800 text-gray-400">
-                                <tr>
-                                    <th class="px-3 py-2 w-16">Nº</th>
-                                    <th class="px-3 py-2">Nome</th>
-                                    <th class="px-3 py-2 w-32">Posição</th>
-                                    <th class="px-3 py-2 w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="roster-players-body" class="divide-y divide-gray-800">
-                                <!-- Linhas geradas via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Secção Oficiais -->
-                <div>
-                    <div class="flex justify-between items-center mb-4">
-                        <h3 class="text-xl font-bold text-orange-400">Oficiais</h3>
-                        <button id="addOfficialBtn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm font-bold">+ Adicionar</button>
-                    </div>
-                    <div class="bg-gray-900 rounded-lg p-2">
-                        <table class="w-full text-left text-sm text-gray-300">
-                            <thead class="text-xs uppercase bg-gray-800 text-gray-400">
-                                <tr>
-                                    <th class="px-3 py-2 w-16">Nº/ID</th>
-                                    <th class="px-3 py-2">Nome</th>
-                                    <th class="px-3 py-2 w-32">Cargo</th>
-                                    <th class="px-3 py-2 w-10"></th>
-                                </tr>
-                            </thead>
-                            <tbody id="roster-officials-body" class="divide-y divide-gray-800">
-                                <!-- Linhas geradas via JS -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
-
-            <div class="p-6 border-t border-gray-700 flex justify-end gap-4">
-                <button id="cancelRosterBtn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Cancelar</button>
-                <button id="confirmRosterBtn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-8 rounded-lg text-lg">Confirmar e Guardar</button>
-            </div>
-        </div>
-    </div>
-
+    <!-- Resto do HTML mantém-se igual -->
     <!-- Aplicação Principal -->
     <div id="main-app" class="container mx-auto p-4 hidden">
         <!-- Placar -->
@@ -136,7 +99,6 @@
                 <div id="suspension-container" class="flex flex-col gap-1 text-xs"></div>
             </div>
             
-            <!-- Botões de Controlo do Tempo -->
             <div class="grid grid-cols-3 gap-4">
                 <button id="startBtn" class="btn-feedback bg-green-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Iniciar</button>
                 <button id="pauseBtn" class="btn-feedback bg-yellow-600 text-white font-bold py-4 rounded-xl text-lg md:text-xl">Pausar</button>
@@ -171,18 +133,14 @@
         <!-- ABA 1: DADOS -->
         <div id="tab-data" class="tab-content block">
             <div class="grid md:grid-cols-2 gap-4">
-                <!-- Nossa Equipa -->
                 <div class="bg-gray-800 p-4 rounded-2xl">
                     <h3 class="text-xl font-bold text-blue-400 mb-4 border-b border-gray-700 pb-2">Nossa Equipa</h3>
                     <div id="goalkeeper-list-A" class="space-y-2 mb-4"></div>
                     <div id="player-list-A" class="space-y-2"></div>
-                    
-                    <!-- Lista de Oficiais -->
                     <h4 class="text-lg font-bold text-gray-400 mt-6 mb-2 border-b border-gray-700 pb-1">Oficiais</h4>
                     <div id="officials-list-A" class="space-y-2"></div>
                 </div>
                 
-                <!-- Adversário -->
                 <div class="bg-gray-800 p-4 rounded-2xl">
                     <h3 class="text-xl font-bold text-orange-400 mb-4 border-b border-gray-700 pb-2">Adversário</h3>
                     
@@ -203,25 +161,19 @@
             </div>
         </div>
 
-        <!-- Resto do HTML (Stats, Heatmap, Modais) mantém-se igual -->
-        <!-- OMITIDO PARA POUPAR ESPAÇO, COPIA O DO PASSO ANTERIOR -->
-        <!-- ABA 2: ESTATÍSTICA (COMPARATIVO DIRETO) -->
+        <!-- ABA 2: ESTATÍSTICA -->
         <div id="tab-stats" class="tab-content hidden">
             <div class="bg-gray-800 p-6 rounded-2xl shadow-lg">
                 <h3 class="text-2xl font-bold text-center mb-6 text-white">Comparativo Direto</h3>
-                
-                <div id="stats-comparison-container" class="space-y-0 divide-y divide-gray-700">
-                    <!-- O JavaScript vai inserir aqui as linhas de comparação -->
-                </div>
+                <div id="stats-comparison-container" class="space-y-0 divide-y divide-gray-700"></div>
             </div>
         </div>
 
-        <!-- ABA 3: HEATMAP (COMPARATIVO DIRETO BALIZAS) -->
+        <!-- ABA 3: HEATMAP -->
         <div id="tab-heatmap" class="tab-content hidden">
             <div class="bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg">
                 <h3 class="text-2xl font-bold text-center mb-6 text-white">Mapa de Remates</h3>
                 
-                <!-- Legenda -->
                 <div class="flex justify-center gap-6 text-sm mb-6 bg-gray-900 p-2 rounded-lg">
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Golo</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Defesa</div>
@@ -229,12 +181,10 @@
                 </div>
 
                 <div class="grid md:grid-cols-2 gap-8">
-                    <!-- Baliza Esquerda: Nossos Remates (Ataque) -->
                     <div class="flex flex-col items-center">
                         <h4 class="text-blue-400 font-bold text-lg mb-2">ATAQUE (Nossos Remates)</h4>
                         <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-blue-500/50 rounded-lg">
                             <svg viewBox="0 0 300 200" class="w-full h-full">
-                                <!-- Desenho da Baliza (Reutilizável) -->
                                 <defs>
                                     <pattern id="netPatternView1" width="10" height="10" patternUnits="userSpaceOnUse">
                                         <path d="M 10 0 L 0 0 0 10" fill="none" stroke="#374151" stroke-width="0.5"/>
@@ -244,13 +194,10 @@
                                 <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
                                 <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
                                 <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
-                                <!-- Pontos -->
                                 <g id="heatmap-points-attack"></g>
                             </svg>
                         </div>
                     </div>
-
-                    <!-- Baliza Direita: Remates Adversário (Defesa) -->
                     <div class="flex flex-col items-center">
                         <h4 class="text-orange-400 font-bold text-lg mb-2">DEFESA (Remates Sofridos)</h4>
                         <div class="relative w-full aspect-[3/2] bg-gray-900 border-2 border-orange-500/50 rounded-lg">
@@ -264,7 +211,6 @@
                                 <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
                                 <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
                                 <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
-                                <!-- Pontos -->
                                 <g id="heatmap-points-defense"></g>
                             </svg>
                         </div>
@@ -274,14 +220,10 @@
         </div>
     </div>
 
-    <!-- === MODAIS === -->
-
-    <!-- Modal Remate (SEQUENCIAL ATUALIZADO COM BOTÕES DE ZONA) -->
+    <!-- Modais Mantidos -->
     <div id="shotModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-md text-center border border-blue-500/30 shadow-2xl relative max-h-[90vh] overflow-y-auto">
             <h3 class="text-xl font-bold mb-2 text-blue-400" id="shotPlayerName">Jogador</h3>
-            
-            <!-- PASSO 1: TIPO DE REMATE -->
             <div id="shotTypeContainer" class="mb-4">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">1. Tipo de Remate</p>
                 <div class="grid grid-cols-3 gap-2">
@@ -294,8 +236,6 @@
                     <button class="shot-type-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white text-sm transition">Contra-Ataque</button>
                 </div>
             </div>
-
-            <!-- PASSO 2: ZONA (GRELHA DE BOTÕES) -->
             <div id="shotZoneContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">2. Zona de Remate</p>
                 <div class="grid grid-cols-4 gap-2">
@@ -309,8 +249,6 @@
                     <button class="shot-zone-btn bg-gray-700 hover:bg-gray-600 p-3 rounded text-white font-bold transition" data-zone="8">8</button>
                 </div>
             </div>
-
-            <!-- PASSO 3: LOCAL NA BALIZA -->
             <div id="shotGoalContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">3. Local na Baliza (Clique)</p>
                 <div class="relative w-full h-48 bg-gray-900 border border-gray-600 rounded flex items-center justify-center cursor-crosshair group" id="goalSvgWrapper">
@@ -321,23 +259,14 @@
                             </pattern>
                         </defs>
                         <rect x="10" y="10" width="280" height="190" fill="url(#netPattern)" stroke="none" />
-                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" />
-                        <rect x="40" y="0" width="40" height="10" fill="white" />
-                        <rect x="120" y="0" width="40" height="10" fill="white" />
-                        <rect x="200" y="0" width="40" height="10" fill="white" />
-                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" />
-                        <rect x="0" y="40" width="10" height="40" fill="white" />
-                        <rect x="0" y="120" width="10" height="40" fill="white" />
-                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" />
-                        <rect x="290" y="40" width="10" height="40" fill="white" />
-                        <rect x="290" y="120" width="10" height="40" fill="white" />
+                        <rect x="0" y="0" width="300" height="10" fill="#ef4444" /><rect x="40" y="0" width="40" height="10" fill="white" /><rect x="120" y="0" width="40" height="10" fill="white" /><rect x="200" y="0" width="40" height="10" fill="white" />
+                        <rect x="0" y="0" width="10" height="200" fill="#ef4444" /><rect x="0" y="40" width="10" height="40" fill="white" /><rect x="0" y="120" width="10" height="40" fill="white" />
+                        <rect x="290" y="0" width="10" height="200" fill="#ef4444" /><rect x="290" y="40" width="10" height="40" fill="white" /><rect x="290" y="120" width="10" height="40" fill="white" />
                     </svg>
                     <div id="shotMarker" class="absolute w-4 h-4 bg-yellow-400 rounded-full border-2 border-white shadow-md hidden transform -translate-x-1/2 -translate-y-1/2 pointer-events-none"></div>
                 </div>
                 <p class="text-xs text-gray-500 mt-1">Toque onde a bola bateu/entrou</p>
             </div>
-
-            <!-- PASSO 4: RESULTADO -->
             <div id="shotOutcomeContainer" class="hidden mb-4 border-t border-gray-700 pt-3">
                 <p class="text-gray-400 text-xs uppercase font-bold tracking-wider mb-2 text-left">4. Resultado</p>
                 <div class="grid grid-cols-1 gap-2">
@@ -346,12 +275,65 @@
                     <button data-outcome="miss" class="shot-outcome-btn bg-red-600 hover:bg-red-700 py-3 rounded-lg text-lg font-bold shadow-lg transition">FORA / POSTE 🥅</button>
                 </div>
             </div>
-
             <button id="closeShotModal" class="mt-4 text-gray-400 w-full py-2 hover:text-white transition">Cancelar</button>
         </div>
     </div>
 
-    <!-- Modal Sanções -->
+    <!-- Modal Roster (Gestão de Plantel) -->
+    <div id="rosterModal" class="hidden fixed inset-0 bg-black bg-opacity-95 flex items-center justify-center z-50 p-4">
+        <div class="bg-gray-800 rounded-2xl w-full max-w-4xl h-[90vh] flex flex-col shadow-2xl border border-gray-700">
+            <div class="p-6 border-b border-gray-700 flex justify-between items-center">
+                <h2 class="text-2xl font-bold text-white">Confirmar Plantel</h2>
+                <button id="closeRosterBtn" class="text-gray-400 hover:text-white">&times;</button>
+            </div>
+            <div class="flex-1 overflow-y-auto p-6 space-y-8">
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-blue-400">Jogadores</h3>
+                        <button id="addPlayerBtn" class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-bold">+ Adicionar</button>
+                    </div>
+                    <div class="bg-gray-900 rounded-lg p-2">
+                        <table class="w-full text-left text-sm text-gray-300">
+                            <thead class="text-xs uppercase bg-gray-800 text-gray-400">
+                                <tr>
+                                    <th class="px-3 py-2 w-16">Nº</th>
+                                    <th class="px-3 py-2">Nome</th>
+                                    <th class="px-3 py-2 w-32">Posição</th>
+                                    <th class="px-3 py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="roster-players-body" class="divide-y divide-gray-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-bold text-orange-400">Oficiais</h3>
+                        <button id="addOfficialBtn" class="bg-orange-600 hover:bg-orange-500 text-white px-3 py-1 rounded text-sm font-bold">+ Adicionar</button>
+                    </div>
+                    <div class="bg-gray-900 rounded-lg p-2">
+                        <table class="w-full text-left text-sm text-gray-300">
+                            <thead class="text-xs uppercase bg-gray-800 text-gray-400">
+                                <tr>
+                                    <th class="px-3 py-2 w-16">Letra</th>
+                                    <th class="px-3 py-2">Nome</th>
+                                    <th class="px-3 py-2 w-32">Cargo</th>
+                                    <th class="px-3 py-2 w-10"></th>
+                                </tr>
+                            </thead>
+                            <tbody id="roster-officials-body" class="divide-y divide-gray-800"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <div class="p-6 border-t border-gray-700 flex justify-end gap-4">
+                <button id="cancelRosterBtn" class="bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-6 rounded-lg">Cancelar</button>
+                <button id="confirmRosterBtn" class="bg-green-600 hover:bg-green-500 text-white font-bold py-2 px-8 rounded-lg text-lg">Confirmar e Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modais Secundários -->
     <div id="sanctionsModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-500">Sanção Disciplinar</h3>
@@ -363,8 +345,6 @@
             <button id="closeSanctionsModal" class="mt-6 text-gray-400 w-full">Cancelar</button>
         </div>
     </div>
-
-    <!-- Modal Ações Positivas -->
     <div id="positiveActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-green-400">Ação Positiva</h3>
@@ -376,8 +356,6 @@
             <button id="closePositiveModal" class="mt-6 text-gray-400 w-full">Cancelar</button>
         </div>
     </div>
-
-    <!-- Modal Ações Negativas -->
     <div id="negativeActionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center">
             <h3 class="text-xl font-bold mb-4 text-red-400">Ação Negativa</h3>
@@ -389,8 +367,6 @@
             <button id="closeNegativeModal" class="mt-6 text-gray-400 w-full">Cancelar</button>
         </div>
     </div>
-
-    <!-- Modal Correção de Tempo -->
     <div id="correctionModal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50 p-4">
         <div class="bg-gray-800 p-6 rounded-2xl w-full max-w-xs text-center border border-blue-500">
             <h3 class="text-xl font-bold mb-6 text-white">Corrigir Tempo</h3>
