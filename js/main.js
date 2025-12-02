@@ -1,8 +1,16 @@
-// js/main.js - Lógica Principal Atualizada
+// js/main.js - Versão Final com Credenciais Google Configuradas
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
 import { exportToExcel } from './export.js';
+
+// --- CONFIGURAÇÃO GOOGLE DRIVE ---
+const GOOGLE_API_KEY = 'AIzaSyAW0ZAImkHQ3XVbIHWitzD1vhpz08GKs_Q'; 
+const GOOGLE_CLIENT_ID = '250165264222-fo1fnfija65ol7f5k8iv5c2v6q5cj1d2.apps.googleusercontent.com';
+const GOOGLE_APP_ID = '250165264222'; 
+
+// Scope 'drive.file' permite abrir apenas ficheiros que o utilizador seleciona (Mais Seguro)
+const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 let timer;
 let currentPersonForAction = null;
@@ -10,11 +18,18 @@ let currentShotType = null;
 let currentShotZone = null;
 let currentShotCoords = null; 
 let els = {}; 
-// Variável temporária para edição do plantel
 let tempRoster = { players: [], officials: [] };
+let tokenClient;
+let gapiInited = false;
+let gisInited = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
+    
+    // Inicializar Google API
+    if (typeof gapi !== 'undefined') {
+        gapi.load('client:picker', initializeGapiClient);
+    }
 
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
@@ -62,6 +77,7 @@ function initDOMElements() {
         startGameBtn: document.getElementById('startGameBtn'),
         teamAName: document.getElementById('teamAName'),
         teamBName: document.getElementById('teamBName'),
+        googleDriveBtn: document.getElementById('googleDriveBtn'),
         
         editTimerBtn: document.getElementById('editTimerBtn'),
         correctionModal: document.getElementById('correctionModal'),
@@ -85,7 +101,6 @@ function initDOMElements() {
         btnHeatmapUs: document.getElementById('btn-heatmap-us'),
         btnHeatmapThem: document.getElementById('btn-heatmap-them'),
 
-        // Elementos do Modal de Plantel
         rosterModal: document.getElementById('rosterModal'),
         rosterPlayersBody: document.getElementById('roster-players-body'),
         rosterOfficialsBody: document.getElementById('roster-officials-body'),
@@ -100,9 +115,9 @@ function initDOMElements() {
 
 function setupEventListeners() {
     if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
+    if(els.googleDriveBtn) els.googleDriveBtn.addEventListener('click', handleGoogleDriveClick);
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
-    // Gestão de Plantel
     if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
     if(els.addOfficialBtn) els.addOfficialBtn.addEventListener('click', () => addRosterRow('official'));
     if(els.cancelRosterBtn) els.cancelRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
@@ -128,6 +143,7 @@ function setupEventListeners() {
         });
     }
 
+    // Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -284,89 +300,165 @@ function setupModals() {
     });
 }
 
-// --- Funções de Gestão de Plantel (ATUALIZADA PARA LER ABA "OFICIAIS") ---
+// --- GOOGLE DRIVE LOGIC ---
+
+async function initializeGapiClient() {
+    try {
+        await gapi.client.init({
+            apiKey: GOOGLE_API_KEY,
+            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
+        });
+        gapiInited = true;
+    } catch(err) {
+        console.error("Erro ao inicializar GAPI:", err);
+    }
+}
+
+function handleGoogleDriveClick() {
+    // Inicializar cliente de token (GIS)
+    tokenClient = google.accounts.oauth2.initTokenClient({
+        client_id: GOOGLE_CLIENT_ID,
+        scope: GOOGLE_SCOPE,
+        callback: async (response) => {
+            if (response.error !== undefined) {
+                console.error(response);
+                alert("Erro na autenticação Google.");
+                throw (response);
+            }
+            createPicker(response.access_token);
+        },
+    });
+    
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    } else {
+        tokenClient.requestAccessToken({prompt: ''});
+    }
+}
+
+function createPicker(accessToken) {
+    if (!gapiInited) {
+        alert("A API Google ainda não carregou totalmente. Tente novamente em alguns segundos.");
+        return;
+    }
+
+    const picker = new google.picker.PickerBuilder()
+        .addView(google.picker.ViewId.SPREADSHEETS)
+        .setOAuthToken(accessToken)
+        .setDeveloperKey(GOOGLE_API_KEY)
+        .setCallback(pickerCallback)
+        .build();
+    picker.setVisible(true);
+}
+
+async function pickerCallback(data) {
+    if (data.action === google.picker.Action.PICKED) {
+        const fileId = data.docs[0].id;
+        const fileName = data.docs[0].name;
+        
+        try {
+            const response = await gapi.client.drive.files.get({
+                fileId: fileId,
+                alt: 'media',
+            }, { responseType: 'arraybuffer' }); 
+            
+            const arrayBuffer = response.body; 
+            // Converting string to ArrayBuffer if needed (GAPI specific quirk)
+            let bytes;
+            if (typeof arrayBuffer === 'string') {
+                const len = arrayBuffer.length;
+                bytes = new Uint8Array(len);
+                for (let i = 0; i < len; i++) bytes[i] = arrayBuffer.charCodeAt(i);
+            } else {
+                bytes = new Uint8Array(arrayBuffer);
+            }
+            
+            processWorkbook(bytes, fileName);
+
+        } catch (err) {
+            console.error("Erro ao baixar do Drive", err);
+            alert("Erro ao baixar ficheiro. Verifique se tem permissões.");
+        }
+    }
+}
+
+
+// --- Lógica de Ficheiros Unificada ---
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
     
-    if(document.getElementById('file-name-A')) {
-        document.getElementById('file-name-A').textContent = file.name;
-    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+        const data = new Uint8Array(evt.target.result);
+        processWorkbook(data, file.name);
+    };
+    reader.readAsArrayBuffer(file);
+}
 
+function processWorkbook(data, fileName) {
     try {
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-            try {
-                const data = new Uint8Array(evt.target.result);
-                const workbook = XLSX.read(data, {type: 'array'});
+        const workbook = XLSX.read(data, {type: 'array'});
+        const sheetNames = workbook.SheetNames;
+        
+        tempRoster = { players: [], officials: [] };
+        
+        const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
+        let jogadoresSheetName = sheetNames[0];
+        
+        if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
+            jogadoresSheetName = sheetNames[1];
+        }
+
+        // 1. Ler Jogadores
+        if (jogadoresSheetName) {
+            const json = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
+            json.forEach(row => {
+                const num = row.Numero ? String(row.Numero).trim() : '';
+                const nome = row.Nome || '';
+                const pos = row.Posicao || '';
                 
-                // Reset temp roster
-                tempRoster = { players: [], officials: [] };
+                if (!oficiaisSheetName) {
+                    const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
+                    if (isOfficial) {
+                        tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
+                    } else {
+                        tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
+                    }
+                } else {
+                    tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
+                }
+            });
+        }
 
-                const sheetNames = workbook.SheetNames;
-                const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
+        // 2. Ler Oficiais
+        if (oficiaisSheetName) {
+            const jsonOff = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
+            jsonOff.forEach(row => {
+                let id = '';
+                if (row.Posicao && String(row.Posicao).trim().length <= 2) {
+                    id = String(row.Posicao).trim(); // Posicao é o ID (Letra)
+                } else if (row.Numero) {
+                    id = String(row.Numero).trim();
+                }
                 
-                let jogadoresSheetName = sheetNames[0];
-                // Evitar usar a aba de oficiais como aba de jogadores se for a primeira
-                if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
-                    jogadoresSheetName = sheetNames[1];
-                }
+                const nome = row.Nome || '';
+                const cargo = 'Oficial'; 
+                
+                tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: cargo });
+            });
+        }
 
-                // 1. Ler Jogadores
-                if (jogadoresSheetName) {
-                    const jsonJogadores = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
-                    jsonJogadores.forEach(row => {
-                        const num = row.Numero ? String(row.Numero).trim() : '';
-                        const nome = row.Nome || '';
-                        const pos = row.Posicao || '';
-                        
-                        if (!oficiaisSheetName) {
-                            const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
-                            if (isOfficial) {
-                                tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
-                            } else {
-                                tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
-                            }
-                        } else {
-                            tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
-                        }
-                    });
-                }
+        if(document.getElementById('file-name-A')) {
+            document.getElementById('file-name-A').textContent = fileName;
+        }
+        renderRosterEdit();
+        els.rosterModal.classList.remove('hidden');
 
-                // 2. Ler Oficiais (CORREÇÃO DA LÓGICA AQUI)
-                if (oficiaisSheetName) {
-                    const jsonOficiais = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
-                    jsonOficiais.forEach(row => {
-                        // Na imagem enviada, 'Posicao' contém a Letra (A, B...) e 'Nome' o nome.
-                        // Não existe coluna 'Numero' explícita na imagem, a 'Posicao' serve de ID.
-                        let id = '';
-                        if (row.Posicao && String(row.Posicao).trim().length <= 2) {
-                            id = String(row.Posicao).trim();
-                        } else if (row.Numero) {
-                            id = String(row.Numero).trim();
-                        }
-
-                        const nome = row.Nome || '';
-                        // Como usamos 'Posicao' para o ID (Letra), definimos o cargo genericamente
-                        const role = 'Oficial'; 
-                        
-                        tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: role });
-                    });
-                }
-
-                // Mostrar Modal
-                renderRosterEdit();
-                els.rosterModal.classList.remove('hidden');
-            } catch (err) {
-                console.error("Erro ao processar Excel:", err);
-                alert("Erro ao ler os dados do Excel. Certifique-se que tem abas de Jogadores e/ou Oficiais.");
-            }
-        };
-        reader.readAsArrayBuffer(file);
     } catch (err) {
-        console.error("Erro no FileReader:", err);
-        alert("Não foi possível abrir o ficheiro.");
+        console.error("Erro ao processar workbook", err);
+        alert("Ficheiro inválido ou corrompido.");
     }
 }
 
@@ -374,7 +466,6 @@ function renderRosterEdit() {
     els.rosterPlayersBody.innerHTML = '';
     els.rosterOfficialsBody.innerHTML = '';
 
-    // Jogadores
     tempRoster.players.forEach((p, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -386,7 +477,6 @@ function renderRosterEdit() {
         els.rosterPlayersBody.appendChild(tr);
     });
 
-    // Oficiais (Título da coluna adaptado para Letra/ID)
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
