@@ -42,7 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
 function initDOMElements() {
     els = {
-        // ... (elementos anteriores)
         welcomeModal: document.getElementById('welcomeModal'),
         mainApp: document.getElementById('main-app'),
         timerDisplay: document.getElementById('timer'),
@@ -103,7 +102,7 @@ function setupEventListeners() {
     if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
-    // Gestão de Plantel (Eventos)
+    // Gestão de Plantel
     if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
     if(els.addOfficialBtn) els.addOfficialBtn.addEventListener('click', () => addRosterRow('official'));
     if(els.cancelRosterBtn) els.cancelRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
@@ -129,9 +128,6 @@ function setupEventListeners() {
         });
     }
 
-    // ... (restante código dos event listeners: abas, cronómetro, modais, etc) ...
-    // COPIAR TODO O CÓDIGO ANTERIOR DAQUI PARA BAIXO IGUAL
-    // (Abas, Start/Pause, Modais, etc)
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -154,10 +150,12 @@ function setupEventListeners() {
     document.getElementById('startBtn')?.addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
-        const requiredPlayers = (duration === 25) ? 6 : 7;
+        const baseRequired = (duration === 25) ? 6 : 7;
+        const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+        const requiredPlayers = baseRequired - suspendedCount;
 
         if (playersOnCourt !== requiredPlayers) {
-            alert(`⚠️ Atenção: Para ${duration} min, deve ter ${requiredPlayers} jogadores em campo.`);
+            alert(`⚠️ Atenção: Para ${duration} min com ${suspendedCount} suspensões ativas, deve ter ${requiredPlayers} jogadores em campo.`);
             return; 
         }
         timer.start(); 
@@ -286,47 +284,64 @@ function setupModals() {
     });
 }
 
-// --- Funções de Gestão de Plantel (NOVAS) ---
+// --- Funções de Gestão de Plantel (CORRIGIDA) ---
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
-        
-        // Reset temp roster
-        tempRoster = { players: [], officials: [] };
-
-        json.forEach(row => {
-            const num = row.Numero ? String(row.Numero).trim() : '';
-            const nome = row.Nome || '';
-            const pos = row.Posicao || '';
-
-            // Heurística simples: se o número for letra (A,B,C) é oficial, senão jogador
-            if (num.match(/^[A-Z]$/i) || pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')) {
-                tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
-            } else {
-                tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
-            }
-        });
-
-        // Mostrar Modal
-        renderRosterEdit();
-        els.rosterModal.classList.remove('hidden');
+    
+    // 1. Feedback Imediato
+    if(document.getElementById('file-name-A')) {
         document.getElementById('file-name-A').textContent = file.name;
-    };
-    reader.readAsArrayBuffer(file);
+    }
+
+    try {
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            try {
+                const data = new Uint8Array(evt.target.result);
+                const workbook = XLSX.read(data, {type: 'array'});
+                const sheet = workbook.Sheets[workbook.SheetNames[0]];
+                const json = XLSX.utils.sheet_to_json(sheet);
+                
+                // Reset temp roster
+                tempRoster = { players: [], officials: [] };
+
+                json.forEach(row => {
+                    const num = row.Numero ? String(row.Numero).trim() : '';
+                    const nome = row.Nome || '';
+                    const pos = row.Posicao || '';
+
+                    // Heurística simples
+                    const isOfficial = num.match(/^[A-Z]$/i) || 
+                                     (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
+
+                    if (isOfficial) {
+                        tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
+                    } else {
+                        tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
+                    }
+                });
+
+                // Mostrar Modal
+                renderRosterEdit();
+                els.rosterModal.classList.remove('hidden');
+            } catch (err) {
+                console.error("Erro ao processar Excel:", err);
+                alert("Erro ao ler os dados do Excel. Verifique se tem as colunas: Numero, Nome, Posicao");
+            }
+        };
+        reader.readAsArrayBuffer(file);
+    } catch (err) {
+        console.error("Erro no FileReader:", err);
+        alert("Não foi possível abrir o ficheiro.");
+    }
 }
 
 function renderRosterEdit() {
     els.rosterPlayersBody.innerHTML = '';
     els.rosterOfficialsBody.innerHTML = '';
 
-    // Render Jogadores
     tempRoster.players.forEach((p, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -338,7 +353,6 @@ function renderRosterEdit() {
         els.rosterPlayersBody.appendChild(tr);
     });
 
-    // Render Oficiais
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -351,7 +365,6 @@ function renderRosterEdit() {
     });
 }
 
-// Funções globais para o HTML do Modal aceder
 window.addRosterRow = (type) => {
     if (type === 'player') tempRoster.players.push({ Numero: '', Nome: '', Posicao: '' });
     else tempRoster.officials.push({ Numero: '', Nome: '', Posicao: '' });
@@ -370,7 +383,6 @@ window.updateTempRoster = (type, index, field, value) => {
 };
 
 function saveRosterFromModal() {
-    // Converter o tempRoster para o formato final do jogo
     const finalPlayers = tempRoster.players.filter(p => p.Numero && p.Nome).map(p => ({
         ...p,
         goals: 0, performanceScore: 0, onCourt: false, isSuspended: false, suspensionTimer: 0, timeOnCourt: 0,
@@ -385,8 +397,6 @@ function saveRosterFromModal() {
 
     store.loadPlayers(finalPlayers, finalOfficials);
 }
-
-// ... Resto das funções (RenderPlayers, CheckStart, etc) ...
 
 function checkStart() {
     const ready = store.state.gameData.A.fileLoaded && els.welcomeTeamBName.value !== "";
@@ -403,8 +413,6 @@ function initUI() {
     refreshUI();
 }
 
-// ATUALIZAÇÃO: renderPlayers agora inclui Oficiais?
-// Vou adicionar uma função para renderizar oficiais se a lista existir no HTML
 function renderOfficials() {
     if (!els.officialsListA) return;
     els.officialsListA.innerHTML = '';
@@ -426,15 +434,14 @@ function renderOfficials() {
 }
 
 function renderPlayers() {
-    // ... código anterior ...
     const list = document.getElementById('player-list-A');
     const gkList = document.getElementById('goalkeeper-list-A');
     if(!list || !gkList) return;
+    
     list.innerHTML = '';
     gkList.innerHTML = '';
     
     store.state.gameData.A.players.forEach(p => {
-        // ... (código criação div player) ...
         const div = document.createElement('div');
         const isSuspended = p.isSuspended;
         div.className = `flex justify-between items-center p-2 mb-1 rounded-lg text-sm 
@@ -464,13 +471,89 @@ function renderPlayers() {
         if(p.Posicao && p.Posicao.includes('GR')) gkList.appendChild(div);
         else list.appendChild(div);
     });
-
-    renderOfficials(); // Chama renderização de oficiais
+    renderOfficials();
 }
 
-// ... Resto das funções (OpenModal, etc) ...
-// Nota: Em openModal, precisas de lidar com o ID especial dos oficiais se quiseres sancioná-los
-// Mas por agora o foco é a gestão do plantel.
+// ... (Resto das funções - OpenModal, TogglePlayer, Handlers, etc - mantêm-se) ...
+// COPIAR RESTANTE CÓDIGO DO PASSO ANTERIOR
+window.togglePlayer = (num) => {
+    const duration = store.state.halfDuration || 30; 
+    const baseLimit = (duration === 25) ? 6 : 7;
+    const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+    const currentLimit = baseLimit - suspendedCount;
+
+    const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
+    
+    if (player) {
+        if (player.isSuspended) {
+            alert("O jogador está suspenso e não pode entrar em campo agora.");
+            return;
+        }
+        if (!player.onCourt) {
+            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
+            if (playersOnCourt >= currentLimit) {
+                alert(`⚠️ Limite atingido!\n\nCapacidade atual: ${currentLimit} jogadores.\n(Devido a ${suspendedCount} suspensões ativas).`);
+                return;
+            }
+        }
+    }
+
+    store.update(s => {
+        const p = s.gameData.A.players.find(pl => pl.Numero == num);
+        if(p && !p.isSuspended) p.onCourt = !p.onCourt;
+    });
+    refreshUI();
+};
+
+window.openModal = (type, num) => {
+    currentPersonForAction = num;
+    if (typeof num === 'string' && num.startsWith('OFF_')) {
+        document.getElementById('shotPlayerName').textContent = num.replace('OFF_', 'Oficial: ');
+        els.sanctionsModal.classList.remove('hidden');
+        return;
+    }
+    if (num === 'OPPONENT') {
+        document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
+    } else {
+        const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
+        const name = p ? p.Nome : '';
+        document.getElementById('shotPlayerName').textContent = name;
+    }
+
+    document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    els.shotZoneContainer.classList.add('hidden');
+    els.shotOutcomeContainer.classList.add('hidden');
+    els.shotGoalContainer.classList.add('hidden'); 
+    els.shotMarker.classList.add('hidden'); 
+    
+    currentShotType = null;
+    currentShotZone = null;
+    currentShotCoords = null;
+
+    if(type === 'shot') els.shotModal.classList.remove('hidden');
+    else if(type === 'sanction') els.sanctionsModal.classList.remove('hidden');
+    else if(type === 'positive') els.positiveModal.classList.remove('hidden');
+    else if(type === 'negative') els.negativeModal.classList.remove('hidden');
+};
+
+function handleUndo() {
+    const oldState = store.undo();
+    if (oldState) {
+        timer.pause(oldState.totalSeconds);
+        refreshUI();
+    } else alert("Nada para desfazer.");
+}
+
+function formatTime(sec) {
+    const m = Math.floor(sec / 60).toString().padStart(2, '0');
+    const s = (sec % 60).toString().padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function logGameEvent(state, team, type, details) {
+    state.gameEvents.push({ time: state.totalSeconds, team, type, details });
+}
 
 function handleShotOutcome(outcome) {
     store.update(s => {
@@ -627,12 +710,7 @@ function handleSanctionOutcome(type) {
             if(!p) return;
 
             if (type === 'yellow') p.sanctions.yellow++;
-            if (type === 'red') { 
-                p.sanctions.red++; 
-                p.onCourt = false;
-                p.isSuspended = true; 
-                p.suspensionTimer = 120; 
-            }
+            if (type === 'red') { p.sanctions.red++; p.onCourt = false; p.isSuspended = true; p.suspensionTimer = 120; }
             if (type === '2min') {
                 p.sanctions.twoMin++;
                 p.isSuspended = true;
@@ -672,18 +750,6 @@ function handleGenericAction(action, type) {
     });
     els.positiveModal.classList.add('hidden');
     els.negativeModal.classList.add('hidden');
-    refreshUI();
-}
-
-function registerOpponentAction(action) {
-    store.update(s => {
-        if (action === 'goal') { s.gameData.B.stats.goals++; s.gameData.A.stats.gkGoalsAgainst++; }
-        if (action === 'save') { s.gameData.B.stats.gkSaves++; s.gameData.A.stats.savedShots++; }
-        if (action === 'miss') { s.gameData.B.stats.misses++; }
-        if (action === '2min') { s.gameData.B.isSuspended = true; s.gameData.B.suspensionTimer = 120; }
-        
-        logGameEvent(s, 'B', action, `Adversário: ${action}`);
-    });
     refreshUI();
 }
 
@@ -787,263 +853,4 @@ function renderTimeline() {
         div.innerHTML = `<span class="font-mono text-gray-500">${formatTime(e.time)}</span> ${e.details}`;
         list.appendChild(div);
     });
-}
-
-function renderPlayers() {
-    const list = document.getElementById('player-list-A');
-    const gkList = document.getElementById('goalkeeper-list-A');
-    if(!list || !gkList) return;
-    
-    list.innerHTML = '';
-    gkList.innerHTML = '';
-    
-    store.state.gameData.A.players.forEach(p => {
-        const div = document.createElement('div');
-        const isSuspended = p.isSuspended;
-        div.className = `flex justify-between items-center p-2 mb-1 rounded-lg text-sm 
-            ${p.onCourt ? 'bg-green-900 border-l-4 border-green-500' : 'bg-gray-700'}
-            ${isSuspended ? 'opacity-50' : ''}`;
-        
-        div.innerHTML = `
-            <div class="flex items-center gap-2 w-1/3">
-                <span class="font-bold text-gray-400 w-6">${p.Numero}</span>
-                <span class="truncate font-medium">${p.Nome}</span>
-                ${p.sanctions.yellow > 0 ? '<span class="text-yellow-400">▮</span>' : ''}
-                ${p.sanctions.twoMin > 0 ? '<span class="text-red-400">✌️</span>' : ''}
-            </div>
-            
-            <div class="flex items-center justify-end gap-1 w-2/3">
-                <span id="time-p-${p.Numero}" class="text-xs font-mono text-gray-300 mr-1">${formatTime(p.timeOnCourt)}</span>
-                <span class="text-xs font-mono text-yellow-500 mr-2">PTS:${p.performanceScore || 0}</span>
-                <button class="bg-blue-600 hover:bg-blue-500 text-white px-2 py-1 rounded" onclick="window.openModal('shot', '${p.Numero}')">🎯</button>
-                <button class="bg-teal-600 hover:bg-teal-500 text-white px-2 py-1 rounded" onclick="window.openModal('positive', '${p.Numero}')">👍</button>
-                <button class="bg-red-800 hover:bg-red-700 text-white px-2 py-1 rounded" onclick="window.openModal('negative', '${p.Numero}')">👎</button>
-                <button class="bg-yellow-600 hover:bg-yellow-500 text-white px-2 py-1 rounded" onclick="window.openModal('sanction', '${p.Numero}')">⚠️</button>
-                <button class="text-xs px-2 py-1 rounded ${p.onCourt ? 'bg-gray-600' : 'bg-green-600'}" onclick="window.togglePlayer('${p.Numero}')">
-                    ${p.onCourt ? 'Sai' : 'Entra'}
-                </button>
-            </div>
-        `;
-        if(p.Posicao === 'GR') gkList.appendChild(div);
-        else list.appendChild(div);
-    });
-
-    renderOfficials();
-}
-
-function renderOfficials() {
-    if (!els.officialsListA) return;
-    els.officialsListA.innerHTML = '';
-    
-    store.state.gameData.A.officials.forEach(off => {
-        const div = document.createElement('div');
-        div.className = 'flex justify-between items-center p-2 mb-1 rounded-lg bg-gray-800 text-sm';
-        div.innerHTML = `
-            <div class="flex items-center gap-2">
-                <span class="font-bold text-gray-400 w-6">${off.Numero || '-'}</span>
-                <span class="font-medium">${off.Nome}</span>
-            </div>
-            <div class="flex gap-1">
-                <button class="bg-yellow-600 px-2 py-1 rounded" onclick="window.openModal('sanction', 'OFF_${off.Nome}')">⚠️</button>
-            </div>
-        `;
-        els.officialsListA.appendChild(div);
-    });
-}
-
-// --- Funções Globais (Bridge) ---
-window.togglePlayer = (num) => {
-    const duration = store.state.halfDuration || 30; // 30 ou 25
-    const baseLimit = (duration === 25) ? 6 : 7;
-    
-    // Contar suspensões ativas para reduzir o limite
-    const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
-    const currentLimit = baseLimit - suspendedCount;
-
-    const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
-    
-    if (player) {
-        if (player.isSuspended) {
-            alert("O jogador está suspenso e não pode entrar em campo agora.");
-            return;
-        }
-
-        if (!player.onCourt) {
-            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-            if (playersOnCourt >= currentLimit) {
-                alert(`⚠️ Limite atingido!\n\nCapacidade atual: ${currentLimit} jogadores.\n(Devido a ${suspendedCount} suspensões ativas).`);
-                return;
-            }
-        }
-    }
-
-    store.update(s => {
-        const p = s.gameData.A.players.find(pl => pl.Numero == num);
-        if(p && !p.isSuspended) p.onCourt = !p.onCourt;
-    });
-    refreshUI();
-};
-
-window.openModal = (type, num) => {
-    currentPersonForAction = num;
-    if (num === 'OPPONENT') {
-        document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
-    } else {
-        const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
-        const name = p ? p.Nome : '';
-        document.getElementById('shotPlayerName').textContent = name;
-    }
-
-    // Reset visual
-    document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-    document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-    els.shotZoneContainer.classList.add('hidden');
-    els.shotOutcomeContainer.classList.add('hidden');
-    els.shotGoalContainer.classList.add('hidden'); 
-    els.shotMarker.classList.add('hidden'); 
-    
-    currentShotType = null;
-    currentShotZone = null;
-    currentShotCoords = null;
-
-    if(type === 'shot') {
-        els.shotModal.classList.remove('hidden');
-    } else if(type === 'sanction') {
-        els.sanctionsModal.classList.remove('hidden');
-    } else if(type === 'positive') {
-        els.positiveModal.classList.remove('hidden');
-    } else if(type === 'negative') {
-        els.negativeModal.classList.remove('hidden');
-    }
-};
-
-function handleUndo() {
-    const oldState = store.undo();
-    if (oldState) {
-        timer.pause(oldState.totalSeconds);
-        refreshUI();
-    } else alert("Nada para desfazer.");
-}
-
-function formatTime(sec) {
-    const m = Math.floor(sec / 60).toString().padStart(2, '0');
-    const s = (sec % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-}
-
-function logGameEvent(state, team, type, details) {
-    state.gameEvents.push({ time: state.totalSeconds, team, type, details });
-}
-
-function handleFileSelect(e) {
-    const file = e.target.files[0];
-    if(!file) return;
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        const workbook = XLSX.read(data, {type: 'array'});
-        const sheet = workbook.Sheets[workbook.SheetNames[0]];
-        const json = XLSX.utils.sheet_to_json(sheet);
-        
-        // Reset temp roster
-        tempRoster = { players: [], officials: [] };
-
-        json.forEach(row => {
-            const num = row.Numero ? String(row.Numero).trim() : '';
-            const nome = row.Nome || '';
-            const pos = row.Posicao || '';
-
-            // Heurística simples: se o número for letra (A,B,C) é oficial, senão jogador
-            if (num.match(/^[A-Z]$/i) || pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')) {
-                tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
-            } else {
-                tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
-            }
-        });
-
-        // Mostrar Modal
-        renderRosterEdit();
-        els.rosterModal.classList.remove('hidden');
-        document.getElementById('file-name-A').textContent = file.name;
-    };
-    reader.readAsArrayBuffer(file);
-}
-
-function renderRosterEdit() {
-    els.rosterPlayersBody.innerHTML = '';
-    els.rosterOfficialsBody.innerHTML = '';
-
-    // Render Jogadores
-    tempRoster.players.forEach((p, index) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded text-center" value="${p.Numero}" onchange="updateTempRoster('player', ${index}, 'Numero', this.value)"></td>
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded" value="${p.Nome}" onchange="updateTempRoster('player', ${index}, 'Nome', this.value)"></td>
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded text-center" value="${p.Posicao}" onchange="updateTempRoster('player', ${index}, 'Posicao', this.value)"></td>
-            <td class="p-1 text-center"><button class="text-red-500 hover:text-red-400 font-bold" onclick="removeRosterRow('player', ${index})">&times;</button></td>
-        `;
-        els.rosterPlayersBody.appendChild(tr);
-    });
-
-    // Render Oficiais
-    tempRoster.officials.forEach((o, index) => {
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded text-center" value="${o.Numero}" onchange="updateTempRoster('official', ${index}, 'Numero', this.value)"></td>
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded" value="${o.Nome}" onchange="updateTempRoster('official', ${index}, 'Nome', this.value)"></td>
-            <td class="p-1"><input type="text" class="w-full bg-gray-700 p-1 rounded text-center" value="${o.Posicao}" onchange="updateTempRoster('official', ${index}, 'Posicao', this.value)"></td>
-            <td class="p-1 text-center"><button class="text-red-500 hover:text-red-400 font-bold" onclick="removeRosterRow('official', ${index})">&times;</button></td>
-        `;
-        els.rosterOfficialsBody.appendChild(tr);
-    });
-}
-
-// Funções globais para o HTML do Modal aceder
-window.addRosterRow = (type) => {
-    if (type === 'player') tempRoster.players.push({ Numero: '', Nome: '', Posicao: '' });
-    else tempRoster.officials.push({ Numero: '', Nome: '', Posicao: '' });
-    renderRosterEdit();
-};
-
-window.removeRosterRow = (type, index) => {
-    if (type === 'player') tempRoster.players.splice(index, 1);
-    else tempRoster.officials.splice(index, 1);
-    renderRosterEdit();
-};
-
-window.updateTempRoster = (type, index, field, value) => {
-    if (type === 'player') tempRoster.players[index][field] = value;
-    else tempRoster.officials[index][field] = value;
-};
-
-function saveRosterFromModal() {
-    // Converter o tempRoster para o formato final do jogo
-    const finalPlayers = tempRoster.players.filter(p => p.Numero && p.Nome).map(p => ({
-        ...p,
-        goals: 0, performanceScore: 0, onCourt: false, isSuspended: false, suspensionTimer: 0, timeOnCourt: 0,
-        sanctions: { yellow: 0, twoMin: 0, red: 0 },
-        positiveActions: [], negativeActions: []
-    }));
-
-    const finalOfficials = tempRoster.officials.filter(o => o.Nome).map(o => ({
-        ...o,
-        sanctions: { yellow: 0, twoMin: 0, red: 0 }
-    }));
-
-    store.loadPlayers(finalPlayers, finalOfficials);
-}
-
-function checkStart() {
-    const ready = store.state.gameData.A.fileLoaded && els.welcomeTeamBName.value !== "";
-    els.startGameBtn.disabled = !ready;
-    if(ready) els.startGameBtn.classList.remove('opacity-50');
-}
-
-function initUI() {
-    els.welcomeModal.classList.add('hidden');
-    els.mainApp.classList.remove('hidden');
-    els.teamAName.value = store.state.teamAName;
-    els.teamBName.value = store.state.teamBName;
-    timer.elapsedPaused = store.state.totalSeconds;
-    refreshUI();
 }
