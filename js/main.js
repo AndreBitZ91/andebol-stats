@@ -290,7 +290,6 @@ function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
     
-    // 1. Feedback Imediato
     if(document.getElementById('file-name-A')) {
         document.getElementById('file-name-A').textContent = file.name;
     }
@@ -305,12 +304,11 @@ function handleFileSelect(e) {
                 // Reset temp roster
                 tempRoster = { players: [], officials: [] };
 
-                // Procurar aba de Oficiais
                 const sheetNames = workbook.SheetNames;
                 const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
                 
-                // Assume que a primeira aba é a de jogadores, a menos que seja explicitamente a de oficiais (caso raro)
                 let jogadoresSheetName = sheetNames[0];
+                // Evitar usar a aba de oficiais como aba de jogadores se for a primeira
                 if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
                     jogadoresSheetName = sheetNames[1];
                 }
@@ -323,7 +321,6 @@ function handleFileSelect(e) {
                         const nome = row.Nome || '';
                         const pos = row.Posicao || '';
                         
-                        // Se não houver aba separada, usamos a heurística para separar aqui
                         if (!oficiaisSheetName) {
                             const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
                             if (isOfficial) {
@@ -332,20 +329,29 @@ function handleFileSelect(e) {
                                 tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
                             }
                         } else {
-                            // Se houver aba separada, tudo aqui é jogador
                             tempRoster.players.push({ Numero: num, Nome: nome, Posicao: pos });
                         }
                     });
                 }
 
-                // 2. Ler Oficiais (Se aba existir)
+                // 2. Ler Oficiais (CORREÇÃO DA LÓGICA AQUI)
                 if (oficiaisSheetName) {
                     const jsonOficiais = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
                     jsonOficiais.forEach(row => {
-                        const num = row.Numero ? String(row.Numero).trim() : '';
+                        // Na imagem enviada, 'Posicao' contém a Letra (A, B...) e 'Nome' o nome.
+                        // Não existe coluna 'Numero' explícita na imagem, a 'Posicao' serve de ID.
+                        let id = '';
+                        if (row.Posicao && String(row.Posicao).trim().length <= 2) {
+                            id = String(row.Posicao).trim();
+                        } else if (row.Numero) {
+                            id = String(row.Numero).trim();
+                        }
+
                         const nome = row.Nome || '';
-                        const pos = row.Posicao || 'Oficial';
-                        tempRoster.officials.push({ Numero: num, Nome: nome, Posicao: pos });
+                        // Como usamos 'Posicao' para o ID (Letra), definimos o cargo genericamente
+                        const role = 'Oficial'; 
+                        
+                        tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: role });
                     });
                 }
 
@@ -380,7 +386,7 @@ function renderRosterEdit() {
         els.rosterPlayersBody.appendChild(tr);
     });
 
-    // Oficiais
+    // Oficiais (Título da coluna adaptado para Letra/ID)
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -502,8 +508,6 @@ function renderPlayers() {
     renderOfficials();
 }
 
-// ... (Resto das funções - TogglePlayer, OpenModal, Handlers - mantêm-se inalteradas) ...
-// COPIAR RESTANTE CÓDIGO
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; 
     const baseLimit = (duration === 25) ? 6 : 7;
