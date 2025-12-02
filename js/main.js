@@ -1,4 +1,4 @@
-// js/main.js - Versão Final com Correções no Google Drive
+// js/main.js - Versão com Correção do Carregamento Google Drive
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -26,12 +26,13 @@ let gisInited = false;
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
     
-    // Inicializar Google API
-    if (typeof gapi !== 'undefined') {
-        gapi.load('client:picker', initializeGapiClient);
-    } else {
-        console.error("Biblioteca GAPI não carregou. Verifique a conexão à internet.");
-    }
+    // CORREÇÃO: Esperar que a GAPI carregue em vez de verificar apenas uma vez
+    const checkGapi = setInterval(() => {
+        if (typeof gapi !== 'undefined') {
+            clearInterval(checkGapi);
+            gapi.load('client:picker', initializeGapiClient);
+        }
+    }, 500); // Verifica a cada meio segundo
 
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
@@ -319,7 +320,7 @@ async function initializeGapiClient() {
 function handleGoogleDriveClick() {
     // Se ainda não estiver inicializado, tenta de novo ou avisa
     if (!gapiInited) {
-        alert("A aguardar inicialização da Google API... tente novamente em 2 segundos.");
+        alert("A aguardar inicialização da Google API... A carregar, por favor aguarde.");
         return;
     }
 
@@ -328,9 +329,9 @@ function handleGoogleDriveClick() {
         scope: GOOGLE_SCOPE,
         callback: async (response) => {
             if (response.error !== undefined) {
-                console.error("Erro no Login Google:", response);
+                console.error(response);
                 alert("Erro na autenticação Google.");
-                return;
+                throw (response);
             }
             
             // CORREÇÃO CRÍTICA: Configurar token no gapi.client para downloads
@@ -342,7 +343,12 @@ function handleGoogleDriveClick() {
         },
     });
     
-    tokenClient.requestAccessToken({prompt: ''});
+    // Se já tiver token válido, usa-o.
+    if (gapi.client.getToken() === null) {
+        tokenClient.requestAccessToken({prompt: 'consent'});
+    } else {
+        tokenClient.requestAccessToken({prompt: ''});
+    }
 }
 
 function createPicker(accessToken) {
@@ -367,33 +373,31 @@ async function pickerCallback(data) {
         console.log(`Ficheiro selecionado: ${fileName} (${fileId})`);
 
         try {
-            // Usa a API Drive para obter o conteúdo
             const response = await gapi.client.drive.files.get({
                 fileId: fileId,
                 alt: 'media',
-            }, { responseType: 'arraybuffer' }); // Importante para SheetJS
+            }, { responseType: 'arraybuffer' });
             
-            // Tratar resposta (ArrayBuffer)
-            // Em algumas versões gapi, response.body pode ser string crua
+            // Tratar resposta
             let bytes;
-            if (response.body && typeof response.body === 'string') {
-                // Converter string binária para Uint8Array
-                const len = response.body.length;
+            // Em algumas versões/respostas, pode vir no body ou result
+            const raw = response.body || response.result;
+
+            if (typeof raw === 'string') {
+                const len = raw.length;
                 bytes = new Uint8Array(len);
                 for (let i = 0; i < len; i++) {
-                    bytes[i] = response.body.charCodeAt(i);
+                    bytes[i] = raw.charCodeAt(i);
                 }
             } else {
-                // Se já vier correto como ArrayBuffer no result
-                // Nota: dependendo da versão gapi, pode estar em response.result ou response.body
-                bytes = new Uint8Array(response.body || response.result);
+                bytes = new Uint8Array(raw);
             }
             
             processWorkbook(bytes, fileName);
 
         } catch (err) {
             console.error("Erro ao baixar do Drive:", err);
-            alert(`Erro ao baixar ficheiro: ${err.message || err.result?.error?.message || 'Verifique a consola'}`);
+            alert(`Erro ao baixar ficheiro: ${err.message || 'Verifique a consola'}`);
         }
     }
 }
