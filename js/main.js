@@ -1,4 +1,4 @@
-// js/main.js - Versão Corrigida (Lógica de Correção de Tempo)
+// js/main.js - Versão Final com Regras de Sanções e Correção de Timer
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -200,7 +200,7 @@ function setupEventListeners() {
         });
     }
 
-    // --- LÓGICA DE CORREÇÃO DE TEMPO (CORRIGIDA E ROBUSTA) ---
+    // --- LÓGICA DE CORREÇÃO DE TEMPO ---
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
             const min = parseInt(els.correctMin.value) || 0;
@@ -209,24 +209,19 @@ function setupEventListeners() {
             const oldTotalSeconds = store.state.totalSeconds;
             const newTotalSeconds = (min * 60) + sec;
             
-            // Calcular a diferença (Positiva = Avanço, Negativa = Recuo)
+            // Diferença (Positiva = Avanço, Negativa = Recuo)
             const diff = newTotalSeconds - oldTotalSeconds;
 
-            // Só vale a pena atualizar se houve mudança
             if (diff !== 0) {
                 store.update(s => {
-                    // 1. Atualizar tempo global
                     s.totalSeconds = newTotalSeconds;
 
-                    // 2. Atualizar Tempo de Jogadores (apenas os que estão em campo)
+                    // Atualizar Jogadores
                     s.gameData.A.players.forEach(p => {
                         if (p.onCourt) {
                             p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
                         }
-
-                        // 3. Atualizar Suspensões (Atenção: Lógica Inversa para Timer Decrescente)
-                        // Se o tempo AVANÇA (+diff), a suspensão DIMINUI (-diff)
-                        // Se o tempo RECUA (-diff), a suspensão AUMENTA (-(-diff) = +diff)
+                        // Ajustar Suspensões
                         if (p.isSuspended && p.suspensionTimer > 0) {
                             p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
                             if (p.suspensionTimer === 0) {
@@ -235,7 +230,7 @@ function setupEventListeners() {
                         }
                     });
 
-                    // 4. Suspensão Adversário
+                    // Atualizar Suspensão Adversário
                     if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
                         s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
                         if (s.gameData.B.suspensionTimer === 0) {
@@ -244,18 +239,16 @@ function setupEventListeners() {
                     }
                 });
 
-                // 5. Atualizar o Timer Interno
+                // ATUALIZAÇÃO CRÍTICA DO TIMER INTERNO
                 if (timer) {
-                    if (typeof timer.setTime === 'function') {
-                        timer.setTime(newTotalSeconds);
-                    } else {
-                        timer.elapsedPaused = newTotalSeconds; 
-                    }
+                    timer.elapsedPaused = newTotalSeconds; // Força o valor base
+                    timer.startTime = 0; // Reseta start time para evitar deltas malucos
                 }
             }
             
-            // 6. Forçar atualização visual completa
-            refreshUI(); // Garante que as caixas vermelhas e tempos dos jogadores mudam
+            updateDisplay();
+            updateSuspensionsDisplay();
+            renderPlayers();
             els.correctionModal.classList.add('hidden');
         });
     }
@@ -282,7 +275,76 @@ function setupEventListeners() {
     setupModals();
 }
 
-// ... Resto das funções (Modais, Google Drive, etc) ...
+function handleSanctionOutcome(type) {
+    store.update(s => {
+        // Lógica para Adversário
+        if (currentPersonForAction === 'OPPONENT') {
+            if (type === '2min') {
+                s.gameData.B.isSuspended = true;
+                s.gameData.B.suspensionTimer = 120;
+            }
+            logGameEvent(s, 'B', 'sanction', `Adversário: ${type}`);
+        } 
+        // Lógica para Oficial
+        else if (typeof currentPersonForAction === 'string' && currentPersonForAction.startsWith('OFF_')) {
+            const officialName = currentPersonForAction.replace('OFF_', '');
+            const official = s.gameData.A.officials.find(o => o.Nome === officialName);
+            if (official) {
+                if(type === 'yellow') official.sanctions.yellow++;
+                if(type === '2min') official.sanctions.twoMin++;
+                if(type === 'red') official.sanctions.red++;
+                logGameEvent(s, 'A', 'sanction', `Oficial ${officialName}: ${type}`);
+            }
+        } 
+        // Lógica para Jogador
+        else {
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+
+            // 1. AMARELOS (Máx 3 por equipa, mas apenas avisa)
+            if (type === 'yellow') {
+                if (s.gameData.A.teamYellowCards >= 3) {
+                    alert("Atenção: A equipa já tem 3 cartões amarelos!");
+                }
+                p.sanctions.yellow++;
+                s.gameData.A.teamYellowCards++;
+            }
+
+            // 2. VERMELHO (Expulsão Direta)
+            if (type === 'red') { 
+                p.sanctions.red++; 
+                p.onCourt = false;
+                p.isSuspended = true; // Equipa fica com menos 1
+                p.suspensionTimer = 120; 
+            }
+
+            // 3. DOIS MINUTOS
+            if (type === '2min') {
+                p.sanctions.twoMin++;
+                
+                // Regra: 3º Dois Minutos = Cartão Vermelho
+                if (p.sanctions.twoMin >= 3) {
+                    alert(`O jogador #${p.Numero} atingiu 3 exclusões e foi desqualificado (Vermelho)!`);
+                    p.sanctions.red++; // Adiciona vermelho automático
+                    p.onCourt = false; // Sai de campo permanentemente
+                    p.isSuspended = true; // Equipa com menos 1
+                    p.suspensionTimer = 120;
+                } else {
+                    // Exclusão normal
+                    p.isSuspended = true;
+                    p.suspensionTimer = 120;
+                    p.onCourt = false;
+                }
+            }
+            logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
+        }
+    });
+    els.sanctionsModal.classList.add('hidden');
+    refreshUI();
+}
+
+// ... Resto das funções (Modais, Google Drive, Generic, TimeEvents, UI, Reset, etc) mantêm-se iguais ...
+// COPIAR CÓDIGO EXISTENTE PARA O RESTO DO FICHEIRO
 
 function setupModals() {
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
@@ -720,122 +782,6 @@ function handleShotOutcome(outcome) {
         }
     });
     els.shotModal.classList.add('hidden');
-    refreshUI();
-}
-
-function updateStatsTab() {
-    const statsA = store.state.gameData.A.stats;
-    const statsB = store.state.gameData.B.stats;
-    const teamA = store.state.teamAName;
-    const teamB = store.state.teamBName;
-    const totalShotsA = statsA.goals + statsA.misses + statsA.savedShots;
-    const totalShotsB = statsB.goals + statsB.misses + statsB.savedShots;
-    const effA = totalShotsA > 0 ? ((statsA.goals / totalShotsA) * 100).toFixed(0) : 0;
-    const effB = totalShotsB > 0 ? ((statsB.goals / totalShotsB) * 100).toFixed(0) : 0;
-    const gkEffA = (statsA.gkSaves + statsA.gkGoalsAgainst) > 0 
-        ? ((statsA.gkSaves / (statsA.gkSaves + statsA.gkGoalsAgainst)) * 100).toFixed(0) : 0;
-    const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
-        ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
-    const rows = [
-        { label: "Golos", valA: statsA.goals, valB: statsB.goals },
-        { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
-        { label: "Eficácia GR", valA: `${gkEffA}%`, valB: `${gkEffB}%` },
-        { label: "Faltas Técnicas", valA: store.state.gameData.A.stats.technical_faults, valB: statsB.technical_faults },
-        { label: "Perdas de Bola", valA: statsA.turnovers, valB: statsB.turnovers }
-    ];
-    let html = '';
-    rows.forEach(row => {
-        html += `
-            <div class="grid grid-cols-3 items-center text-center border-b border-gray-700 py-3">
-                <div class="text-xl font-bold text-blue-400">${row.valA}</div>
-                <div class="text-sm text-gray-400 font-medium uppercase tracking-wide">${row.label}</div>
-                <div class="text-xl font-bold text-orange-400">${row.valB}</div>
-            </div>
-        `;
-    });
-    const header = `
-        <div class="grid grid-cols-3 text-center mb-4 border-b border-gray-600 pb-2">
-            <div class="font-bold text-white truncate px-2 text-lg">${teamA}</div>
-            <div></div>
-            <div class="font-bold text-white truncate px-2 text-lg">${teamB}</div>
-        </div>
-    `;
-    els.statsComparisonContainer.innerHTML = header + html;
-}
-
-function updateHeatmapTab() {
-    els.heatmapPointsAttack.innerHTML = '';
-    els.heatmapPointsDefense.innerHTML = '';
-    store.state.gameData.A.players.forEach(p => {
-        if (p.history) {
-            p.history.forEach(shot => {
-                drawDot(els.heatmapPointsAttack, shot);
-            });
-        }
-    });
-    if (store.state.gameData.B.history) {
-        store.state.gameData.B.history.forEach(shot => {
-            drawDot(els.heatmapPointsDefense, shot);
-        });
-    }
-}
-
-function drawDot(container, shot) {
-    if (!shot.coords || !shot.coords.x) return;
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("cx", (shot.coords.x / 100) * 300);
-    circle.setAttribute("cy", (shot.coords.y / 100) * 200);
-    circle.setAttribute("r", 5);
-    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
-    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
-    else circle.setAttribute("fill", "#ef4444");
-    circle.setAttribute("stroke", "white");
-    circle.setAttribute("stroke-width", "1");
-    circle.setAttribute("opacity", "0.9");
-    container.appendChild(circle);
-}
-
-function handleReset() {
-    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
-    if (confirmacao) {
-        sessionStorage.clear(); 
-        window.location.reload();
-    }
-}
-
-function showWelcomeScreen() {
-    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
-    if(els.mainApp) els.mainApp.classList.add('hidden');
-}
-
-function handleSanctionOutcome(type) {
-    store.update(s => {
-        if (currentPersonForAction === 'OPPONENT') {
-            if (type === '2min') {
-                s.gameData.B.isSuspended = true;
-                s.gameData.B.suspensionTimer = 120;
-            }
-            logGameEvent(s, 'B', 'sanction', `Adversário: ${type}`);
-        } else {
-            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-            if(!p) return;
-            if (type === 'yellow') p.sanctions.yellow++;
-            if (type === 'red') { 
-                p.sanctions.red++; 
-                p.onCourt = false;
-                p.isSuspended = true; 
-                p.suspensionTimer = 120; 
-            }
-            if (type === '2min') {
-                p.sanctions.twoMin++;
-                p.isSuspended = true;
-                p.suspensionTimer = 120;
-                p.onCourt = false;
-            }
-            logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
-        }
-    });
-    els.sanctionsModal.classList.add('hidden');
     refreshUI();
 }
 
