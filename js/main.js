@@ -337,7 +337,7 @@ function setupModals() {
     });
 }
 
-// --- LÓGICA GOOGLE DRIVE ---
+// --- GOOGLE DRIVE LOGIC ---
 
 async function initializeGapiClient() {
     try {
@@ -425,7 +425,12 @@ function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
     
-    console.log("Ficheiro selecionado:", file.name);
+    // CORREÇÃO: Atualiza o texto imediatamente
+    const fileNameElement = document.getElementById('file-name-A');
+    if(fileNameElement) {
+        fileNameElement.textContent = file.name;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
         try {
@@ -917,49 +922,4 @@ function renderTimeline() {
         div.innerHTML = `<span class="font-mono text-gray-500">${formatTime(e.time)}</span> ${e.details}`;
         list.appendChild(div);
     });
-}
-
-function handleReset() {
-    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
-    if (confirmacao) {
-        sessionStorage.clear(); 
-        window.location.reload();
-    }
-}
-
-function showWelcomeScreen() {
-    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
-    if(els.mainApp) els.mainApp.classList.add('hidden');
-}
-
-function updateHeatmapTab() {
-    els.heatmapPointsAttack.innerHTML = '';
-    els.heatmapPointsDefense.innerHTML = '';
-    store.state.gameData.A.players.forEach(p => {
-        if (p.history) {
-            p.history.forEach(shot => {
-                drawDot(els.heatmapPointsAttack, shot);
-            });
-        }
-    });
-    if (store.state.gameData.B.history) {
-        store.state.gameData.B.history.forEach(shot => {
-            drawDot(els.heatmapPointsDefense, shot);
-        });
-    }
-}
-
-function drawDot(container, shot) {
-    if (!shot.coords || !shot.coords.x) return;
-    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
-    circle.setAttribute("cx", (shot.coords.x / 100) * 300);
-    circle.setAttribute("cy", (shot.coords.y / 100) * 200);
-    circle.setAttribute("r", 5);
-    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
-    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
-    else circle.setAttribute("fill", "#ef4444");
-    circle.setAttribute("stroke", "white");
-    circle.setAttribute("stroke-width", "1");
-    circle.setAttribute("opacity", "0.9");
-    container.appendChild(circle);
 }
