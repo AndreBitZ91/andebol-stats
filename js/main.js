@@ -1,4 +1,4 @@
-// js/main.js - Lógica Principal Atualizada com Correção Inteligente de Tempo
+// js/main.js - Versão Corrigida (Lógica de Correção de Tempo)
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -8,8 +8,6 @@ import { exportToExcel } from './export.js';
 const GOOGLE_API_KEY = 'AIzaSyAW0ZAImkHQ3XVbIHWitzD1vhpz08GKs_Q'; 
 const GOOGLE_CLIENT_ID = '250165264222-fo1fnfija65ol7f5k8iv5c2v6q5cj1d2.apps.googleusercontent.com';
 const GOOGLE_APP_ID = '250165264222'; 
-
-// Scope 'drive.file' permite abrir apenas ficheiros que o utilizador seleciona
 const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 let timer;
@@ -21,12 +19,11 @@ let els = {};
 let tempRoster = { players: [], officials: [] };
 let tokenClient;
 let gapiInited = false;
-let gisInited = false;
 
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
     
-    // Carregamento da GAPI
+    // Carregamento GAPI
     const checkGapi = setInterval(() => {
         if (typeof gapi !== 'undefined') {
             clearInterval(checkGapi);
@@ -203,7 +200,7 @@ function setupEventListeners() {
         });
     }
 
-    // --- LÓGICA DE CORREÇÃO DE TEMPO (ATUALIZADA) ---
+    // --- LÓGICA DE CORREÇÃO DE TEMPO (CORRIGIDA E ROBUSTA) ---
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
             const min = parseInt(els.correctMin.value) || 0;
@@ -212,48 +209,53 @@ function setupEventListeners() {
             const oldTotalSeconds = store.state.totalSeconds;
             const newTotalSeconds = (min * 60) + sec;
             
-            // Calcular a diferença de tempo (pode ser positiva ou negativa)
+            // Calcular a diferença (Positiva = Avanço, Negativa = Recuo)
             const diff = newTotalSeconds - oldTotalSeconds;
 
-            store.update(s => {
-                // 1. Atualizar tempo global
-                s.totalSeconds = newTotalSeconds;
+            // Só vale a pena atualizar se houve mudança
+            if (diff !== 0) {
+                store.update(s => {
+                    // 1. Atualizar tempo global
+                    s.totalSeconds = newTotalSeconds;
 
-                // 2. Atualizar Jogadores (Tempo em Campo e Suspensões)
-                s.gameData.A.players.forEach(p => {
-                    // Se está em campo, o tempo de jogo ajusta-se à correção
-                    if (p.onCourt) {
-                        p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
-                    }
+                    // 2. Atualizar Tempo de Jogadores (apenas os que estão em campo)
+                    s.gameData.A.players.forEach(p => {
+                        if (p.onCourt) {
+                            p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
+                        }
 
-                    // Se está suspenso, a suspensão ajusta-se
-                    // (Se avançamos o relógio, a suspensão diminui. Se recuamos, aumenta.)
-                    if (p.isSuspended && p.suspensionTimer > 0) {
-                        p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
-                        // Se a suspensão acabar com o ajuste, liberta o jogador
-                        if (p.suspensionTimer === 0) {
-                            p.isSuspended = false;
+                        // 3. Atualizar Suspensões (Atenção: Lógica Inversa para Timer Decrescente)
+                        // Se o tempo AVANÇA (+diff), a suspensão DIMINUI (-diff)
+                        // Se o tempo RECUA (-diff), a suspensão AUMENTA (-(-diff) = +diff)
+                        if (p.isSuspended && p.suspensionTimer > 0) {
+                            p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
+                            if (p.suspensionTimer === 0) {
+                                p.isSuspended = false;
+                            }
+                        }
+                    });
+
+                    // 4. Suspensão Adversário
+                    if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
+                        s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
+                        if (s.gameData.B.suspensionTimer === 0) {
+                            s.gameData.B.isSuspended = false;
                         }
                     }
                 });
 
-                // 3. Atualizar Suspensão do Adversário
-                if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
-                    s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
-                    if (s.gameData.B.suspensionTimer === 0) {
-                        s.gameData.B.isSuspended = false;
+                // 5. Atualizar o Timer Interno
+                if (timer) {
+                    if (typeof timer.setTime === 'function') {
+                        timer.setTime(newTotalSeconds);
+                    } else {
+                        timer.elapsedPaused = newTotalSeconds; 
                     }
                 }
-            });
-
-            // Atualizar o timer interno
-            if (timer) timer.elapsedPaused = newTotalSeconds;
+            }
             
-            // Atualizar UI
-            updateDisplay();
-            updateSuspensionsDisplay(); // Atualiza as caixas vermelhas das suspensões
-            renderPlayers(); // Atualiza os tempos ao lado dos nomes
-            
+            // 6. Forçar atualização visual completa
+            refreshUI(); // Garante que as caixas vermelhas e tempos dos jogadores mudam
             els.correctionModal.classList.add('hidden');
         });
     }
@@ -280,7 +282,7 @@ function setupEventListeners() {
     setupModals();
 }
 
-// ... Resto das funções (Modais, Google Drive, Ficheiros, Game Logic, UI) mantêm-se iguais ...
+// ... Resto das funções (Modais, Google Drive, etc) ...
 
 function setupModals() {
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
@@ -353,8 +355,7 @@ async function initializeGapiClient() {
         gapiInited = true;
     } catch(err) {
         console.error("Erro GAPI Init:", err);
-        const msg = err.result?.error?.message || JSON.stringify(err);
-        alert(`Erro ao inicializar Google API: ${msg}\n\nVerifique se o endereço do site está adicionado às 'Origens JavaScript autorizadas' na Google Cloud Console.`);
+        alert(`Erro ao inicializar Google API: ${err.result?.error?.message}`);
     }
 }
 
@@ -368,14 +369,8 @@ function handleGoogleDriveClick() {
             client_id: GOOGLE_CLIENT_ID,
             scope: GOOGLE_SCOPE,
             callback: async (response) => {
-                if (response.error !== undefined) {
-                    console.error(response);
-                    alert(`Erro na autenticação: ${response.error}`);
-                    throw (response);
-                }
-                if (gapi.client) {
-                    gapi.client.setToken({ access_token: response.access_token });
-                }
+                if (response.error !== undefined) throw (response);
+                if (gapi.client) gapi.client.setToken({ access_token: response.access_token });
                 createPicker(response.access_token);
             },
         });
@@ -385,8 +380,8 @@ function handleGoogleDriveClick() {
             tokenClient.requestAccessToken({prompt: ''});
         }
     } catch(e) {
-        console.error("Erro ao iniciar Token Client:", e);
-        alert("Erro interno ao iniciar login Google.");
+        console.error("Erro token:", e);
+        alert("Erro ao iniciar login Google.");
     }
 }
 
@@ -423,8 +418,8 @@ async function pickerCallback(data) {
             }
             processWorkbook(bytes, fileName);
         } catch (err) {
-            console.error("Erro ao baixar do Drive:", err);
-            alert(`Erro ao baixar ficheiro: ${err.message || 'Verifique a consola'}`);
+            console.error("Erro Drive:", err);
+            alert("Erro ao baixar ficheiro.");
         }
     }
 }
@@ -472,11 +467,8 @@ function processWorkbook(data, fileName) {
             const jsonOff = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
             jsonOff.forEach(row => {
                 let id = '';
-                if (row.Posicao && String(row.Posicao).trim().length <= 2) {
-                    id = String(row.Posicao).trim(); 
-                } else if (row.Numero) {
-                    id = String(row.Numero).trim();
-                }
+                if (row.Posicao && String(row.Posicao).trim().length <= 2) id = String(row.Posicao).trim(); 
+                else if (row.Numero) id = String(row.Numero).trim();
                 const nome = row.Nome || '';
                 const cargo = 'Oficial'; 
                 tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: cargo });
@@ -488,8 +480,8 @@ function processWorkbook(data, fileName) {
         renderRosterEdit();
         els.rosterModal.classList.remove('hidden');
     } catch (err) {
-        console.error("Erro ao processar workbook", err);
-        alert("Ficheiro inválido ou corrompido.");
+        console.error("Erro workbook:", err);
+        alert("Ficheiro inválido.");
     }
 }
 
