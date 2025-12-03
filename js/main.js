@@ -1,4 +1,4 @@
-// js/main.js - Versão Final com Regras de Sanções e Correção de Timer
+// js/main.js - Versão Robusta e Corrigida
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -21,43 +21,45 @@ let tokenClient;
 let gapiInited = false;
 
 document.addEventListener('DOMContentLoaded', () => {
+    // 1. Capturar Elementos
     initDOMElements();
     
-    // Carregamento GAPI
-    const checkGapi = setInterval(() => {
-        if (typeof gapi !== 'undefined') {
-            clearInterval(checkGapi);
-            gapi.load('client:picker', initializeGapiClient);
-        }
-    }, 500);
+    // 2. Inicializar Google API (Com tentativas)
+    if (typeof gapi !== 'undefined') {
+        const checkGapi = setInterval(() => {
+            if (gapi && gapi.load) {
+                clearInterval(checkGapi);
+                gapi.load('client:picker', initializeGapiClient);
+            }
+        }, 500);
+    }
 
-    setTimeout(() => {
-        if (!gapiInited && typeof gapi === 'undefined') {
-            console.error("TIMEOUT: O script da Google (api.js) não carregou.");
-        }
-    }, 10000);
-
+    // 3. Configurar Timer
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
         updateDisplay();
         checkTimeEvents(seconds);
     });
 
+    // 4. Carregar Estado Guardado
     const hasSavedGame = store.loadFromLocalStorage();
     
     if (hasSavedGame) {
         initUI();
+        // Restaurar Timer se necessário
         if (!store.state.isRunning && store.state.totalSeconds > 0) {
             if(els.editTimerBtn) els.editTimerBtn.disabled = false;
         }
         if (timer && !store.state.isRunning) {
             timer.elapsedPaused = store.state.totalSeconds;
         }
+        // Garantir histórico
         if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
     } else {
         showWelcomeScreen();
     }
 
+    // 5. Ligar Eventos
     setupEventListeners();
 });
 
@@ -120,231 +122,158 @@ function initDOMElements() {
 }
 
 function setupEventListeners() {
-    if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
-    if(els.googleDriveBtn) els.googleDriveBtn.addEventListener('click', handleGoogleDriveClick);
-    if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
-    
-    if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
-    if(els.addOfficialBtn) els.addOfficialBtn.addEventListener('click', () => addRosterRow('official'));
-    if(els.cancelRosterBtn) els.cancelRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
-    if(els.closeRosterBtn) els.closeRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
-    
-    if(els.confirmRosterBtn) {
-        els.confirmRosterBtn.addEventListener('click', () => {
-            saveRosterFromModal();
-            els.rosterModal.classList.add('hidden');
-            checkStart();
-        });
-    }
-
-    if(els.startGameBtn) {
-        els.startGameBtn.addEventListener('click', () => {
-            const selectedDuration = document.querySelector('input[name="gameDuration"]:checked').value;
-            store.update(s => { 
-                s.teamBName = els.welcomeTeamBName.value;
-                s.halfDuration = parseInt(selectedDuration);
-                s.gameData.B.history = [];
+    try {
+        if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
+        if(els.googleDriveBtn) els.googleDriveBtn.addEventListener('click', handleGoogleDriveClick);
+        if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
+        
+        // Gestão de Plantel
+        if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
+        if(els.addOfficialBtn) els.addOfficialBtn.addEventListener('click', () => addRosterRow('official'));
+        if(els.cancelRosterBtn) els.cancelRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
+        if(els.closeRosterBtn) els.closeRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
+        
+        if(els.confirmRosterBtn) {
+            els.confirmRosterBtn.addEventListener('click', () => {
+                saveRosterFromModal();
+                els.rosterModal.classList.add('hidden');
+                checkStart();
             });
-            initUI();
-        });
-    }
-
-    document.querySelectorAll('.tab-link').forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            document.querySelectorAll('.tab-link').forEach(b => {
-                b.classList.remove('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
-                b.classList.add('bg-gray-800', 'text-gray-400');
-            });
-            const clicked = e.target.closest('button');
-            clicked.classList.remove('bg-gray-800', 'text-gray-400');
-            clicked.classList.add('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
-
-            const tabName = clicked.dataset.tab;
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-
-            if (tabName === 'stats') updateStatsTab();
-            if (tabName === 'heatmap') updateHeatmapTab();
-        });
-    });
-
-    document.getElementById('startBtn')?.addEventListener('click', () => { 
-        const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-        const duration = store.state.halfDuration || 30; 
-        const baseRequired = (duration === 25) ? 6 : 7;
-        const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
-        const requiredPlayers = baseRequired - suspendedCount;
-
-        if (playersOnCourt !== requiredPlayers) {
-            alert(`⚠️ Atenção: Para ${duration} min com ${suspendedCount} suspensões ativas, deve ter ${requiredPlayers} jogadores em campo.`);
-            return; 
         }
-        timer.start(); 
-        store.update(s => s.isRunning = true); 
-        if(els.editTimerBtn) els.editTimerBtn.disabled = true;
-    });
 
-    document.getElementById('pauseBtn')?.addEventListener('click', () => { 
-        timer.pause(store.state.totalSeconds); 
-        store.update(s => s.isRunning = false); 
-        if(els.editTimerBtn) els.editTimerBtn.disabled = false;
-    });
+        if(els.startGameBtn) {
+            els.startGameBtn.addEventListener('click', () => {
+                const selectedDuration = document.querySelector('input[name="gameDuration"]:checked').value;
+                store.update(s => { 
+                    s.teamBName = els.welcomeTeamBName.value;
+                    s.halfDuration = parseInt(selectedDuration);
+                    s.gameData.B.history = [];
+                });
+                initUI();
+            });
+        }
 
-    if(els.editTimerBtn) {
-        els.editTimerBtn.addEventListener('click', () => {
-            if (store.state.isRunning) return;
-            const total = store.state.totalSeconds;
-            els.correctMin.value = Math.floor(total / 60);
-            els.correctSec.value = total % 60;
-            els.correctionModal.classList.remove('hidden');
+        // Abas
+        document.querySelectorAll('.tab-link').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                document.querySelectorAll('.tab-link').forEach(b => {
+                    b.classList.remove('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
+                    b.classList.add('bg-gray-800', 'text-gray-400');
+                });
+                const clicked = e.target.closest('button');
+                clicked.classList.remove('bg-gray-800', 'text-gray-400');
+                clicked.classList.add('bg-gray-700', 'border-b-4', 'border-blue-500', 'text-white');
+
+                const tabName = clicked.dataset.tab;
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+                document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+
+                if (tabName === 'stats') updateStatsTab();
+                if (tabName === 'heatmap') updateHeatmapTab();
+            });
         });
-    }
 
-    // --- LÓGICA DE CORREÇÃO DE TEMPO ---
-    if(els.saveCorrectionBtn) {
-        els.saveCorrectionBtn.addEventListener('click', () => {
-            const min = parseInt(els.correctMin.value) || 0;
-            const sec = parseInt(els.correctSec.value) || 0;
-            
-            const oldTotalSeconds = store.state.totalSeconds;
-            const newTotalSeconds = (min * 60) + sec;
-            
-            // Diferença (Positiva = Avanço, Negativa = Recuo)
-            const diff = newTotalSeconds - oldTotalSeconds;
+        // Controlo Jogo
+        document.getElementById('startBtn')?.addEventListener('click', () => { 
+            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
+            const duration = store.state.halfDuration || 30; 
+            const baseRequired = (duration === 25) ? 6 : 7;
+            const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+            const requiredPlayers = baseRequired - suspendedCount;
 
-            if (diff !== 0) {
-                store.update(s => {
-                    s.totalSeconds = newTotalSeconds;
+            if (playersOnCourt !== requiredPlayers) {
+                alert(`⚠️ Atenção: Para ${duration} min com ${suspendedCount} suspensões ativas, deve ter ${requiredPlayers} jogadores em campo.`);
+                return; 
+            }
+            timer.start(); 
+            store.update(s => s.isRunning = true); 
+            if(els.editTimerBtn) els.editTimerBtn.disabled = true;
+        });
 
-                    // Atualizar Jogadores
-                    s.gameData.A.players.forEach(p => {
-                        if (p.onCourt) {
-                            p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
-                        }
-                        // Ajustar Suspensões
-                        if (p.isSuspended && p.suspensionTimer > 0) {
-                            p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
-                            if (p.suspensionTimer === 0) {
-                                p.isSuspended = false;
+        document.getElementById('pauseBtn')?.addEventListener('click', () => { 
+            timer.pause(store.state.totalSeconds); 
+            store.update(s => s.isRunning = false); 
+            if(els.editTimerBtn) els.editTimerBtn.disabled = false;
+        });
+
+        if(els.editTimerBtn) {
+            els.editTimerBtn.addEventListener('click', () => {
+                if (store.state.isRunning) return;
+                const total = store.state.totalSeconds;
+                els.correctMin.value = Math.floor(total / 60);
+                els.correctSec.value = total % 60;
+                els.correctionModal.classList.remove('hidden');
+            });
+        }
+
+        // Correção de Tempo (Lógica Reforçada)
+        if(els.saveCorrectionBtn) {
+            els.saveCorrectionBtn.addEventListener('click', () => {
+                const min = parseInt(els.correctMin.value) || 0;
+                const sec = parseInt(els.correctSec.value) || 0;
+                
+                const oldTotalSeconds = store.state.totalSeconds;
+                const newTotalSeconds = (min * 60) + sec;
+                const diff = newTotalSeconds - oldTotalSeconds;
+
+                if (diff !== 0) {
+                    store.update(s => {
+                        s.totalSeconds = newTotalSeconds;
+
+                        s.gameData.A.players.forEach(p => {
+                            if (p.onCourt) {
+                                p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
                             }
+                            if (p.isSuspended && p.suspensionTimer > 0) {
+                                p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
+                                if (p.suspensionTimer === 0) p.isSuspended = false;
+                            }
+                        });
+
+                        if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
+                            s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
+                            if (s.gameData.B.suspensionTimer === 0) s.gameData.B.isSuspended = false;
                         }
                     });
 
-                    // Atualizar Suspensão Adversário
-                    if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
-                        s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
-                        if (s.gameData.B.suspensionTimer === 0) {
-                            s.gameData.B.isSuspended = false;
-                        }
+                    if (timer) {
+                        timer.elapsedPaused = newTotalSeconds;
+                        timer.startTime = 0; 
                     }
-                });
-
-                // ATUALIZAÇÃO CRÍTICA DO TIMER INTERNO
-                if (timer) {
-                    timer.elapsedPaused = newTotalSeconds; // Força o valor base
-                    timer.startTime = 0; // Reseta start time para evitar deltas malucos
                 }
-            }
-            
-            updateDisplay();
-            updateSuspensionsDisplay();
-            renderPlayers();
-            els.correctionModal.classList.add('hidden');
-        });
-    }
-
-    if(els.closeCorrectionBtn) {
-        els.closeCorrectionBtn.addEventListener('click', () => els.correctionModal.classList.add('hidden'));
-    }
-
-    document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
-    document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
-    document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
-
-    document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
-        store.update(s => s.isPassivePlay = !s.isPassivePlay);
-        e.target.classList.toggle('bg-red-600');
-        e.target.classList.toggle('bg-gray-700');
-    });
-    document.getElementById('opponent7v6Btn')?.addEventListener('click', (e) => {
-        store.update(s => s.isOpponent7v6 = !s.isOpponent7v6);
-        e.target.classList.toggle('bg-orange-600');
-        e.target.classList.toggle('bg-gray-700');
-    });
-
-    setupModals();
-}
-
-function handleSanctionOutcome(type) {
-    store.update(s => {
-        // Lógica para Adversário
-        if (currentPersonForAction === 'OPPONENT') {
-            if (type === '2min') {
-                s.gameData.B.isSuspended = true;
-                s.gameData.B.suspensionTimer = 120;
-            }
-            logGameEvent(s, 'B', 'sanction', `Adversário: ${type}`);
-        } 
-        // Lógica para Oficial
-        else if (typeof currentPersonForAction === 'string' && currentPersonForAction.startsWith('OFF_')) {
-            const officialName = currentPersonForAction.replace('OFF_', '');
-            const official = s.gameData.A.officials.find(o => o.Nome === officialName);
-            if (official) {
-                if(type === 'yellow') official.sanctions.yellow++;
-                if(type === '2min') official.sanctions.twoMin++;
-                if(type === 'red') official.sanctions.red++;
-                logGameEvent(s, 'A', 'sanction', `Oficial ${officialName}: ${type}`);
-            }
-        } 
-        // Lógica para Jogador
-        else {
-            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
-            if(!p) return;
-
-            // 1. AMARELOS (Máx 3 por equipa, mas apenas avisa)
-            if (type === 'yellow') {
-                if (s.gameData.A.teamYellowCards >= 3) {
-                    alert("Atenção: A equipa já tem 3 cartões amarelos!");
-                }
-                p.sanctions.yellow++;
-                s.gameData.A.teamYellowCards++;
-            }
-
-            // 2. VERMELHO (Expulsão Direta)
-            if (type === 'red') { 
-                p.sanctions.red++; 
-                p.onCourt = false;
-                p.isSuspended = true; // Equipa fica com menos 1
-                p.suspensionTimer = 120; 
-            }
-
-            // 3. DOIS MINUTOS
-            if (type === '2min') {
-                p.sanctions.twoMin++;
                 
-                // Regra: 3º Dois Minutos = Cartão Vermelho
-                if (p.sanctions.twoMin >= 3) {
-                    alert(`O jogador #${p.Numero} atingiu 3 exclusões e foi desqualificado (Vermelho)!`);
-                    p.sanctions.red++; // Adiciona vermelho automático
-                    p.onCourt = false; // Sai de campo permanentemente
-                    p.isSuspended = true; // Equipa com menos 1
-                    p.suspensionTimer = 120;
-                } else {
-                    // Exclusão normal
-                    p.isSuspended = true;
-                    p.suspensionTimer = 120;
-                    p.onCourt = false;
-                }
-            }
-            logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
+                updateDisplay();
+                updateSuspensionsDisplay();
+                renderPlayers();
+                els.correctionModal.classList.add('hidden');
+            });
         }
-    });
-    els.sanctionsModal.classList.add('hidden');
-    refreshUI();
-}
 
-// ... Resto das funções (Modais, Google Drive, Generic, TimeEvents, UI, Reset, etc) mantêm-se iguais ...
-// COPIAR CÓDIGO EXISTENTE PARA O RESTO DO FICHEIRO
+        if(els.closeCorrectionBtn) {
+            els.closeCorrectionBtn.addEventListener('click', () => els.correctionModal.classList.add('hidden'));
+        }
+
+        // Botões Gerais
+        document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
+        document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
+        document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
+
+        document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
+            store.update(s => s.isPassivePlay = !s.isPassivePlay);
+            e.target.classList.toggle('bg-red-600');
+            e.target.classList.toggle('bg-gray-700');
+        });
+        document.getElementById('opponent7v6Btn')?.addEventListener('click', (e) => {
+            store.update(s => s.isOpponent7v6 = !s.isOpponent7v6);
+            e.target.classList.toggle('bg-orange-600');
+            e.target.classList.toggle('bg-gray-700');
+        });
+
+        setupModals();
+    } catch (err) {
+        console.error("Erro no setupEventListeners:", err);
+    }
+}
 
 function setupModals() {
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
@@ -408,6 +337,8 @@ function setupModals() {
     });
 }
 
+// --- LÓGICA GOOGLE DRIVE ---
+
 async function initializeGapiClient() {
     try {
         await gapi.client.init({
@@ -415,15 +346,16 @@ async function initializeGapiClient() {
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         });
         gapiInited = true;
+        console.log("GAPI Loaded");
     } catch(err) {
         console.error("Erro GAPI Init:", err);
-        alert(`Erro ao inicializar Google API: ${err.result?.error?.message}`);
+        alert(`Erro API Google: ${err.result?.error?.message || err.message}`);
     }
 }
 
 function handleGoogleDriveClick() {
     if (!gapiInited) {
-        alert("A aguardar inicialização da Google API... Tente novamente em alguns segundos.");
+        alert("A carregar Google API... Tente novamente em breves segundos.");
         return;
     }
     try {
@@ -442,8 +374,8 @@ function handleGoogleDriveClick() {
             tokenClient.requestAccessToken({prompt: ''});
         }
     } catch(e) {
-        console.error("Erro token:", e);
-        alert("Erro ao iniciar login Google.");
+        console.error("Erro Token:", e);
+        alert("Erro ao iniciar login.");
     }
 }
 
@@ -469,6 +401,7 @@ async function pickerCallback(data) {
                 fileId: fileId,
                 alt: 'media',
             }, { responseType: 'arraybuffer' });
+            
             let bytes;
             const raw = response.body || response.result;
             if (typeof raw === 'string') {
@@ -486,15 +419,31 @@ async function pickerCallback(data) {
     }
 }
 
+// --- LÓGICA FICHEIROS LOCAIS ---
+
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
+    
+    console.log("Ficheiro selecionado:", file.name);
     const reader = new FileReader();
     reader.onload = (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        processWorkbook(data, file.name);
+        try {
+            const data = new Uint8Array(evt.target.result);
+            processWorkbook(data, file.name);
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao processar ficheiro.");
+        }
+    };
+    reader.onerror = (err) => {
+        console.error("Erro de leitura:", err);
+        alert("Erro ao ler ficheiro.");
     };
     reader.readAsArrayBuffer(file);
+    
+    // Reset para permitir carregar o mesmo ficheiro de novo
+    e.target.value = ''; 
 }
 
 function processWorkbook(data, fileName) {
@@ -502,11 +451,14 @@ function processWorkbook(data, fileName) {
         const workbook = XLSX.read(data, {type: 'array'});
         const sheetNames = workbook.SheetNames;
         tempRoster = { players: [], officials: [] };
+        
         const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
         let jogadoresSheetName = sheetNames[0];
         if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
             jogadoresSheetName = sheetNames[1];
         }
+
+        // Jogadores
         if (jogadoresSheetName) {
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
             json.forEach(row => {
@@ -525,17 +477,21 @@ function processWorkbook(data, fileName) {
                 }
             });
         }
+
+        // Oficiais
         if (oficiaisSheetName) {
             const jsonOff = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
             jsonOff.forEach(row => {
                 let id = '';
                 if (row.Posicao && String(row.Posicao).trim().length <= 2) id = String(row.Posicao).trim(); 
                 else if (row.Numero) id = String(row.Numero).trim();
+                
                 const nome = row.Nome || '';
                 const cargo = 'Oficial'; 
                 tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: cargo });
             });
         }
+
         if(document.getElementById('file-name-A')) {
             document.getElementById('file-name-A').textContent = fileName;
         }
@@ -543,7 +499,7 @@ function processWorkbook(data, fileName) {
         els.rosterModal.classList.remove('hidden');
     } catch (err) {
         console.error("Erro workbook:", err);
-        alert("Ficheiro inválido.");
+        alert("Ficheiro inválido ou formato incorreto.");
     }
 }
 
@@ -572,6 +528,7 @@ function renderRosterEdit() {
     });
 }
 
+// Funções Globais para o Modal (Window Scope)
 window.addRosterRow = (type) => {
     if (type === 'player') tempRoster.players.push({ Numero: '', Nome: '', Posicao: '' });
     else tempRoster.officials.push({ Numero: '', Nome: '', Posicao: '' });
@@ -587,6 +544,63 @@ window.removeRosterRow = (type, index) => {
 window.updateTempRoster = (type, index, field, value) => {
     if (type === 'player') tempRoster.players[index][field] = value;
     else tempRoster.officials[index][field] = value;
+};
+
+// Funções Globais de Jogo (Window Scope)
+window.togglePlayer = (num) => {
+    const duration = store.state.halfDuration || 30; 
+    const baseLimit = (duration === 25) ? 6 : 7;
+    const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
+    const currentLimit = baseLimit - suspendedCount;
+    const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
+    
+    if (player) {
+        if (player.isSuspended) {
+            alert("O jogador está suspenso e não pode entrar em campo agora.");
+            return;
+        }
+        if (!player.onCourt) {
+            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
+            if (playersOnCourt >= currentLimit) {
+                alert(`⚠️ Limite atingido!\n\nCapacidade atual: ${currentLimit} jogadores.\n(Devido a ${suspendedCount} suspensões ativas).`);
+                return;
+            }
+        }
+    }
+    store.update(s => {
+        const p = s.gameData.A.players.find(pl => pl.Numero == num);
+        if(p && !p.isSuspended) p.onCourt = !p.onCourt;
+    });
+    refreshUI();
+};
+
+window.openModal = (type, num) => {
+    currentPersonForAction = num;
+    if (typeof num === 'string' && num.startsWith('OFF_')) {
+        document.getElementById('shotPlayerName').textContent = num.replace('OFF_', 'Oficial: ');
+        els.sanctionsModal.classList.remove('hidden');
+        return;
+    }
+    if (num === 'OPPONENT') {
+        document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
+    } else {
+        const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
+        const name = p ? p.Nome : '';
+        document.getElementById('shotPlayerName').textContent = name;
+    }
+    document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
+    els.shotZoneContainer.classList.add('hidden');
+    els.shotOutcomeContainer.classList.add('hidden');
+    els.shotGoalContainer.classList.add('hidden'); 
+    els.shotMarker.classList.add('hidden'); 
+    currentShotType = null;
+    currentShotZone = null;
+    currentShotCoords = null;
+    if(type === 'shot') els.shotModal.classList.remove('hidden');
+    else if(type === 'sanction') els.sanctionsModal.classList.remove('hidden');
+    else if(type === 'positive') els.positiveModal.classList.remove('hidden');
+    else if(type === 'negative') els.negativeModal.classList.remove('hidden');
 };
 
 function saveRosterFromModal() {
@@ -674,61 +688,6 @@ function renderPlayers() {
     renderOfficials();
 }
 
-window.togglePlayer = (num) => {
-    const duration = store.state.halfDuration || 30; 
-    const baseLimit = (duration === 25) ? 6 : 7;
-    const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
-    const currentLimit = baseLimit - suspendedCount;
-    const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
-    if (player) {
-        if (player.isSuspended) {
-            alert("O jogador está suspenso e não pode entrar em campo agora.");
-            return;
-        }
-        if (!player.onCourt) {
-            const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
-            if (playersOnCourt >= currentLimit) {
-                alert(`⚠️ Limite atingido!\n\nCapacidade atual: ${currentLimit} jogadores.\n(Devido a ${suspendedCount} suspensões ativas).`);
-                return;
-            }
-        }
-    }
-    store.update(s => {
-        const p = s.gameData.A.players.find(pl => pl.Numero == num);
-        if(p && !p.isSuspended) p.onCourt = !p.onCourt;
-    });
-    refreshUI();
-};
-
-window.openModal = (type, num) => {
-    currentPersonForAction = num;
-    if (typeof num === 'string' && num.startsWith('OFF_')) {
-        document.getElementById('shotPlayerName').textContent = num.replace('OFF_', 'Oficial: ');
-        els.sanctionsModal.classList.remove('hidden');
-        return;
-    }
-    if (num === 'OPPONENT') {
-        document.getElementById('shotPlayerName').textContent = "Equipa Adversária";
-    } else {
-        const p = store.state.gameData.A.players.find(pl => pl.Numero == num);
-        const name = p ? p.Nome : '';
-        document.getElementById('shotPlayerName').textContent = name;
-    }
-    document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-    document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
-    els.shotZoneContainer.classList.add('hidden');
-    els.shotOutcomeContainer.classList.add('hidden');
-    els.shotGoalContainer.classList.add('hidden'); 
-    els.shotMarker.classList.add('hidden'); 
-    currentShotType = null;
-    currentShotZone = null;
-    currentShotCoords = null;
-    if(type === 'shot') els.shotModal.classList.remove('hidden');
-    else if(type === 'sanction') els.sanctionsModal.classList.remove('hidden');
-    else if(type === 'positive') els.positiveModal.classList.remove('hidden');
-    else if(type === 'negative') els.negativeModal.classList.remove('hidden');
-};
-
 function handleUndo() {
     const oldState = store.undo();
     if (oldState) {
@@ -782,6 +741,58 @@ function handleShotOutcome(outcome) {
         }
     });
     els.shotModal.classList.add('hidden');
+    refreshUI();
+}
+
+function handleSanctionOutcome(type) {
+    store.update(s => {
+        if (currentPersonForAction === 'OPPONENT') {
+            if (type === '2min') {
+                s.gameData.B.isSuspended = true;
+                s.gameData.B.suspensionTimer = 120;
+            }
+            logGameEvent(s, 'B', 'sanction', `Adversário: ${type}`);
+        } else if (typeof currentPersonForAction === 'string' && currentPersonForAction.startsWith('OFF_')) {
+            const officialName = currentPersonForAction.replace('OFF_', '');
+            const official = s.gameData.A.officials.find(o => o.Nome === officialName);
+            if (official) {
+                if(type === 'yellow') official.sanctions.yellow++;
+                if(type === '2min') official.sanctions.twoMin++;
+                if(type === 'red') official.sanctions.red++;
+                logGameEvent(s, 'A', 'sanction', `Oficial ${officialName}: ${type}`);
+            }
+        } else {
+            const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
+            if(!p) return;
+            if (type === 'yellow') {
+                if (s.gameData.A.teamYellowCards >= 3) alert("Atenção: A equipa já tem 3 cartões amarelos!");
+                p.sanctions.yellow++;
+                s.gameData.A.teamYellowCards++;
+            }
+            if (type === 'red') { 
+                p.sanctions.red++; 
+                p.onCourt = false;
+                p.isSuspended = true; 
+                p.suspensionTimer = 120; 
+            }
+            if (type === '2min') {
+                p.sanctions.twoMin++;
+                if (p.sanctions.twoMin >= 3) {
+                    alert(`O jogador #${p.Numero} atingiu 3 exclusões e foi desqualificado (Vermelho)!`);
+                    p.sanctions.red++; 
+                    p.onCourt = false; 
+                    p.isSuspended = true; 
+                    p.suspensionTimer = 120;
+                } else {
+                    p.isSuspended = true;
+                    p.suspensionTimer = 120;
+                    p.onCourt = false;
+                }
+            }
+            logGameEvent(s, 'A', 'sanction', `${p.Nome}: ${type}`);
+        }
+    });
+    els.sanctionsModal.classList.add('hidden');
     refreshUI();
 }
 
@@ -906,4 +917,49 @@ function renderTimeline() {
         div.innerHTML = `<span class="font-mono text-gray-500">${formatTime(e.time)}</span> ${e.details}`;
         list.appendChild(div);
     });
+}
+
+function handleReset() {
+    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
+    if (confirmacao) {
+        sessionStorage.clear(); 
+        window.location.reload();
+    }
+}
+
+function showWelcomeScreen() {
+    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
+    if(els.mainApp) els.mainApp.classList.add('hidden');
+}
+
+function updateHeatmapTab() {
+    els.heatmapPointsAttack.innerHTML = '';
+    els.heatmapPointsDefense.innerHTML = '';
+    store.state.gameData.A.players.forEach(p => {
+        if (p.history) {
+            p.history.forEach(shot => {
+                drawDot(els.heatmapPointsAttack, shot);
+            });
+        }
+    });
+    if (store.state.gameData.B.history) {
+        store.state.gameData.B.history.forEach(shot => {
+            drawDot(els.heatmapPointsDefense, shot);
+        });
+    }
+}
+
+function drawDot(container, shot) {
+    if (!shot.coords || !shot.coords.x) return;
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", (shot.coords.x / 100) * 300);
+    circle.setAttribute("cy", (shot.coords.y / 100) * 200);
+    circle.setAttribute("r", 5);
+    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
+    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
+    else circle.setAttribute("fill", "#ef4444");
+    circle.setAttribute("stroke", "white");
+    circle.setAttribute("stroke-width", "1");
+    circle.setAttribute("opacity", "0.9");
+    container.appendChild(circle);
 }
