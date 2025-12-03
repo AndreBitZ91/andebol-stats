@@ -1,14 +1,8 @@
-// js/main.js - Versão Robustecida
+// js/main.js - Versão Robustecida (Apenas Carregamento Local)
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
 import { exportToExcel } from './export.js';
-
-// --- CONFIGURAÇÃO GOOGLE DRIVE ---
-const GOOGLE_API_KEY = 'AIzaSyAW0ZAImkHQ3XVbIHWitzD1vhpz08GKs_Q'; 
-const GOOGLE_CLIENT_ID = '250165264222-fo1fnfija65ol7f5k8iv5c2v6q5cj1d2.apps.googleusercontent.com';
-const GOOGLE_APP_ID = '250165264222'; 
-const GOOGLE_SCOPE = 'https://www.googleapis.com/auth/drive.file';
 
 let timer;
 let currentPersonForAction = null;
@@ -17,23 +11,11 @@ let currentShotZone = null;
 let currentShotCoords = null; 
 let els = {}; 
 let tempRoster = { players: [], officials: [] };
-let tokenClient;
-let gapiInited = false;
 
 // Função de Arranque (Start)
 function startApp() {
     console.log("Aplicação a iniciar...");
     initDOMElements();
-    
-    // Inicializar Google API
-    if (typeof gapi !== 'undefined') {
-        const checkGapi = setInterval(() => {
-            if (gapi && gapi.load) {
-                clearInterval(checkGapi);
-                gapi.load('client:picker', initializeGapiClient);
-            }
-        }, 500);
-    }
 
     // Timer
     timer = new GameTimer((seconds) => {
@@ -91,7 +73,6 @@ function initDOMElements() {
         startGameBtn: document.getElementById('startGameBtn'),
         teamAName: document.getElementById('teamAName'),
         teamBName: document.getElementById('teamBName'),
-        googleDriveBtn: document.getElementById('googleDriveBtn'),
         
         editTimerBtn: document.getElementById('editTimerBtn'),
         correctionModal: document.getElementById('correctionModal'),
@@ -130,7 +111,6 @@ function initDOMElements() {
 function setupEventListeners() {
     // Verificação de segurança para evitar erros se o elemento não existir
     if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
-    if(els.googleDriveBtn) els.googleDriveBtn.addEventListener('click', handleGoogleDriveClick);
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
     if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
@@ -336,95 +316,32 @@ function setupModals() {
     });
 }
 
-async function initializeGapiClient() {
-    try {
-        await gapi.client.init({
-            apiKey: GOOGLE_API_KEY,
-            discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
-        });
-        gapiInited = true;
-        console.log("GAPI Loaded");
-    } catch(err) {
-        console.error("Erro GAPI Init:", err);
-        alert(`Erro API Google: ${err.result?.error?.message || err.message}`);
-    }
-}
-
-function handleGoogleDriveClick() {
-    if (!gapiInited) {
-        alert("A carregar Google API... Tente novamente em breves segundos.");
-        return;
-    }
-    try {
-        tokenClient = google.accounts.oauth2.initTokenClient({
-            client_id: GOOGLE_CLIENT_ID,
-            scope: GOOGLE_SCOPE,
-            callback: async (response) => {
-                if (response.error !== undefined) throw (response);
-                if (gapi.client) gapi.client.setToken({ access_token: response.access_token });
-                createPicker(response.access_token);
-            },
-        });
-        if (gapi.client.getToken() === null) {
-            tokenClient.requestAccessToken({prompt: 'consent'});
-        } else {
-            tokenClient.requestAccessToken({prompt: ''});
-        }
-    } catch(e) {
-        console.error("Erro Token:", e);
-        alert("Erro ao iniciar login.");
-    }
-}
-
-function createPicker(accessToken) {
-    const view = new google.picker.View(google.picker.ViewId.SPREADSHEETS);
-    view.setMimeTypes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel");
-    const picker = new google.picker.PickerBuilder()
-        .addView(view)
-        .setOAuthToken(accessToken)
-        .setDeveloperKey(GOOGLE_API_KEY)
-        .setAppId(GOOGLE_APP_ID)
-        .setCallback(pickerCallback)
-        .build();
-    picker.setVisible(true);
-}
-
-async function pickerCallback(data) {
-    if (data.action === google.picker.Action.PICKED) {
-        const fileId = data.docs[0].id;
-        const fileName = data.docs[0].name;
-        try {
-            const response = await gapi.client.drive.files.get({
-                fileId: fileId,
-                alt: 'media',
-            }, { responseType: 'arraybuffer' });
-            let bytes;
-            const raw = response.body || response.result;
-            if (typeof raw === 'string') {
-                const len = raw.length;
-                bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) bytes[i] = raw.charCodeAt(i);
-            } else {
-                bytes = new Uint8Array(raw);
-            }
-            processWorkbook(bytes, fileName);
-        } catch (err) {
-            console.error("Erro Drive:", err);
-            alert("Erro ao baixar ficheiro.");
-        }
-    }
-}
+// --- LÓGICA FICHEIROS LOCAIS ---
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
+    
+    // Reset para permitir re-seleção
     if(document.getElementById('file-name-A')) document.getElementById('file-name-A').textContent = file.name;
+    
     const reader = new FileReader();
     reader.onload = (evt) => {
-        const data = new Uint8Array(evt.target.result);
-        processWorkbook(data, file.name);
+        try {
+            const data = new Uint8Array(evt.target.result);
+            processWorkbook(data, file.name);
+        } catch (err) {
+            console.error(err);
+            alert("Erro ao processar ficheiro.");
+        }
+    };
+    reader.onerror = (err) => {
+        console.error("Erro de leitura:", err);
+        alert("Erro ao ler ficheiro.");
     };
     reader.readAsArrayBuffer(file);
+    
+    // Reset para permitir carregar o mesmo ficheiro de novo
     e.target.value = ''; 
 }
 
@@ -605,17 +522,12 @@ function renderPlayers() {
     renderOfficials();
 }
 
-// ... Funções Globais mantidas (Toggle, OpenModal, Undo, FormatTime, Log, HandleShot, etc) ...
-// COPIAR AS FUNÇÕES RESTANTES DA VERSÃO ANTERIOR PARA GARANTIR O FICHEIRO COMPLETO
-
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; 
     const baseLimit = (duration === 25) ? 6 : 7;
     const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
     const currentLimit = baseLimit - suspendedCount;
-
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
-    
     if (player) {
         if (player.isSuspended) {
             alert("O jogador está suspenso e não pode entrar em campo agora.");
@@ -629,7 +541,6 @@ window.togglePlayer = (num) => {
             }
         }
     }
-
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
         if(p && !p.isSuspended) p.onCourt = !p.onCourt;
