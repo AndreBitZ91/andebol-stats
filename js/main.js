@@ -1,4 +1,4 @@
-// js/main.js - Versão com Correção do Carregamento Google Drive
+// js/main.js - Versão com Depuração de Erros Google
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -26,13 +26,21 @@ let gisInited = false;
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
     
-    // CORREÇÃO: Esperar que a GAPI carregue em vez de verificar apenas uma vez
+    // CORREÇÃO: Carregamento Robusto da GAPI
     const checkGapi = setInterval(() => {
         if (typeof gapi !== 'undefined') {
             clearInterval(checkGapi);
+            // Tenta carregar o cliente e o picker
             gapi.load('client:picker', initializeGapiClient);
         }
-    }, 500); // Verifica a cada meio segundo
+    }, 500);
+
+    // Timeout de segurança: se em 10 segundos não carregar, avisa na consola
+    setTimeout(() => {
+        if (!gapiInited && typeof gapi === 'undefined') {
+            console.error("TIMEOUT: O script da Google (api.js) não carregou. Verifique a internet ou bloqueadores de anúncios.");
+        }
+    }, 10000);
 
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
@@ -302,52 +310,58 @@ function setupModals() {
     });
 }
 
-// --- GOOGLE DRIVE LOGIC ---
+// --- GOOGLE DRIVE LOGIC (ROBUSTA) ---
 
 async function initializeGapiClient() {
     try {
         await gapi.client.init({
             apiKey: GOOGLE_API_KEY,
+            // Nota: discoveryDocs deve ser uma lista
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         });
         gapiInited = true;
-        console.log("GAPI inicializada com sucesso.");
+        console.log("Google API inicializada com sucesso.");
     } catch(err) {
-        console.error("Erro ao inicializar GAPI:", err);
+        // MOSTRA ERRO ESPECÍFICO AO UTILIZADOR
+        console.error("Erro GAPI Init:", err);
+        const msg = err.result?.error?.message || JSON.stringify(err);
+        alert(`Erro ao inicializar Google API: ${msg}\n\nVerifique se o endereço do site está adicionado às 'Origens JavaScript autorizadas' na Google Cloud Console.`);
     }
 }
 
 function handleGoogleDriveClick() {
-    // Se ainda não estiver inicializado, tenta de novo ou avisa
     if (!gapiInited) {
-        alert("A aguardar inicialização da Google API... A carregar, por favor aguarde.");
+        alert("A aguardar inicialização da Google API... Se este erro persistir, verifique a consola (F12) para detalhes do erro.");
         return;
     }
 
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: GOOGLE_CLIENT_ID,
-        scope: GOOGLE_SCOPE,
-        callback: async (response) => {
-            if (response.error !== undefined) {
-                console.error(response);
-                alert("Erro na autenticação Google.");
-                throw (response);
-            }
-            
-            // CORREÇÃO CRÍTICA: Configurar token no gapi.client para downloads
-            if (gapi.client) {
-                gapi.client.setToken({ access_token: response.access_token });
-            }
-            
-            createPicker(response.access_token);
-        },
-    });
-    
-    // Se já tiver token válido, usa-o.
-    if (gapi.client.getToken() === null) {
-        tokenClient.requestAccessToken({prompt: 'consent'});
-    } else {
-        tokenClient.requestAccessToken({prompt: ''});
+    try {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: GOOGLE_CLIENT_ID,
+            scope: GOOGLE_SCOPE,
+            callback: async (response) => {
+                if (response.error !== undefined) {
+                    console.error(response);
+                    alert(`Erro na autenticação: ${response.error}`);
+                    throw (response);
+                }
+                
+                if (gapi.client) {
+                    gapi.client.setToken({ access_token: response.access_token });
+                }
+                
+                createPicker(response.access_token);
+            },
+        });
+        
+        if (gapi.client.getToken() === null) {
+            tokenClient.requestAccessToken({prompt: 'consent'});
+        } else {
+            tokenClient.requestAccessToken({prompt: ''});
+        }
+    } catch(e) {
+        console.error("Erro ao iniciar Token Client:", e);
+        alert("Erro interno ao iniciar login Google.");
     }
 }
 
@@ -370,17 +384,13 @@ async function pickerCallback(data) {
         const fileId = data.docs[0].id;
         const fileName = data.docs[0].name;
         
-        console.log(`Ficheiro selecionado: ${fileName} (${fileId})`);
-
         try {
             const response = await gapi.client.drive.files.get({
                 fileId: fileId,
                 alt: 'media',
             }, { responseType: 'arraybuffer' });
             
-            // Tratar resposta
             let bytes;
-            // Em algumas versões/respostas, pode vir no body ou result
             const raw = response.body || response.result;
 
             if (typeof raw === 'string') {
