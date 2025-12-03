@@ -1,4 +1,4 @@
-// js/main.js - Versão com Depuração de Erros Google
+// js/main.js - Lógica Principal Atualizada com Correção Inteligente de Tempo
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -26,19 +26,17 @@ let gisInited = false;
 document.addEventListener('DOMContentLoaded', () => {
     initDOMElements();
     
-    // CORREÇÃO: Carregamento Robusto da GAPI
+    // Carregamento da GAPI
     const checkGapi = setInterval(() => {
         if (typeof gapi !== 'undefined') {
             clearInterval(checkGapi);
-            // Tenta carregar o cliente e o picker
             gapi.load('client:picker', initializeGapiClient);
         }
     }, 500);
 
-    // Timeout de segurança: se em 10 segundos não carregar, avisa na consola
     setTimeout(() => {
         if (!gapiInited && typeof gapi === 'undefined') {
-            console.error("TIMEOUT: O script da Google (api.js) não carregou. Verifique a internet ou bloqueadores de anúncios.");
+            console.error("TIMEOUT: O script da Google (api.js) não carregou.");
         }
     }, 10000);
 
@@ -205,14 +203,57 @@ function setupEventListeners() {
         });
     }
 
+    // --- LÓGICA DE CORREÇÃO DE TEMPO (ATUALIZADA) ---
     if(els.saveCorrectionBtn) {
         els.saveCorrectionBtn.addEventListener('click', () => {
             const min = parseInt(els.correctMin.value) || 0;
             const sec = parseInt(els.correctSec.value) || 0;
+            
+            const oldTotalSeconds = store.state.totalSeconds;
             const newTotalSeconds = (min * 60) + sec;
-            store.update(s => s.totalSeconds = newTotalSeconds);
+            
+            // Calcular a diferença de tempo (pode ser positiva ou negativa)
+            const diff = newTotalSeconds - oldTotalSeconds;
+
+            store.update(s => {
+                // 1. Atualizar tempo global
+                s.totalSeconds = newTotalSeconds;
+
+                // 2. Atualizar Jogadores (Tempo em Campo e Suspensões)
+                s.gameData.A.players.forEach(p => {
+                    // Se está em campo, o tempo de jogo ajusta-se à correção
+                    if (p.onCourt) {
+                        p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
+                    }
+
+                    // Se está suspenso, a suspensão ajusta-se
+                    // (Se avançamos o relógio, a suspensão diminui. Se recuamos, aumenta.)
+                    if (p.isSuspended && p.suspensionTimer > 0) {
+                        p.suspensionTimer = Math.max(0, p.suspensionTimer - diff);
+                        // Se a suspensão acabar com o ajuste, liberta o jogador
+                        if (p.suspensionTimer === 0) {
+                            p.isSuspended = false;
+                        }
+                    }
+                });
+
+                // 3. Atualizar Suspensão do Adversário
+                if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
+                    s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
+                    if (s.gameData.B.suspensionTimer === 0) {
+                        s.gameData.B.isSuspended = false;
+                    }
+                }
+            });
+
+            // Atualizar o timer interno
             if (timer) timer.elapsedPaused = newTotalSeconds;
+            
+            // Atualizar UI
             updateDisplay();
+            updateSuspensionsDisplay(); // Atualiza as caixas vermelhas das suspensões
+            renderPlayers(); // Atualiza os tempos ao lado dos nomes
+            
             els.correctionModal.classList.add('hidden');
         });
     }
@@ -239,24 +280,23 @@ function setupEventListeners() {
     setupModals();
 }
 
+// ... Resto das funções (Modais, Google Drive, Ficheiros, Game Logic, UI) mantêm-se iguais ...
+
 function setupModals() {
     document.querySelectorAll('.shot-type-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             e.target.classList.replace('bg-gray-700', 'bg-blue-600');
             currentShotType = e.target.innerText;
-            
             els.shotZoneContainer.classList.remove('hidden');
             els.shotGoalContainer.classList.add('hidden');
             els.shotOutcomeContainer.classList.add('hidden');
-            
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
             currentShotZone = null;
             currentShotCoords = null;
             els.shotMarker.classList.add('hidden');
         });
     });
-
     document.querySelectorAll('.shot-zone-btn').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
@@ -266,28 +306,23 @@ function setupModals() {
             els.shotOutcomeContainer.classList.add('hidden');
         });
     });
-
     if (els.goalSvg) {
         els.goalSvg.addEventListener('click', (e) => {
             const rect = els.goalSvg.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            
             const xPercent = (x / rect.width) * 100;
             const yPercent = (y / rect.height) * 100;
             currentShotCoords = { x: xPercent.toFixed(1), y: yPercent.toFixed(1) };
-
             els.shotMarker.style.left = x + 'px';
             els.shotMarker.style.top = y + 'px';
             els.shotMarker.classList.remove('hidden');
             els.shotOutcomeContainer.classList.remove('hidden');
         });
     }
-
     document.querySelectorAll('.shot-outcome-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleShotOutcome(e.target.dataset.outcome));
     });
-
     document.querySelectorAll('.sanction-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleSanctionOutcome(e.target.dataset.sanction));
     });
@@ -297,7 +332,6 @@ function setupModals() {
     document.querySelectorAll('.negative-confirm-btn').forEach(btn => {
         btn.addEventListener('click', (e) => handleGenericAction(e.target.dataset.action, 'negative'));
     });
-
     const closeIds = ['closeShotModal', 'closeSanctionsModal', 'closePositiveModal', 'closeNegativeModal'];
     closeIds.forEach(id => {
         const el = document.getElementById(id);
@@ -310,19 +344,14 @@ function setupModals() {
     });
 }
 
-// --- GOOGLE DRIVE LOGIC (ROBUSTA) ---
-
 async function initializeGapiClient() {
     try {
         await gapi.client.init({
             apiKey: GOOGLE_API_KEY,
-            // Nota: discoveryDocs deve ser uma lista
             discoveryDocs: ['https://www.googleapis.com/discovery/v1/apis/drive/v3/rest'],
         });
         gapiInited = true;
-        console.log("Google API inicializada com sucesso.");
     } catch(err) {
-        // MOSTRA ERRO ESPECÍFICO AO UTILIZADOR
         console.error("Erro GAPI Init:", err);
         const msg = err.result?.error?.message || JSON.stringify(err);
         alert(`Erro ao inicializar Google API: ${msg}\n\nVerifique se o endereço do site está adicionado às 'Origens JavaScript autorizadas' na Google Cloud Console.`);
@@ -331,10 +360,9 @@ async function initializeGapiClient() {
 
 function handleGoogleDriveClick() {
     if (!gapiInited) {
-        alert("A aguardar inicialização da Google API... Se este erro persistir, verifique a consola (F12) para detalhes do erro.");
+        alert("A aguardar inicialização da Google API... Tente novamente em alguns segundos.");
         return;
     }
-
     try {
         tokenClient = google.accounts.oauth2.initTokenClient({
             client_id: GOOGLE_CLIENT_ID,
@@ -345,15 +373,12 @@ function handleGoogleDriveClick() {
                     alert(`Erro na autenticação: ${response.error}`);
                     throw (response);
                 }
-                
                 if (gapi.client) {
                     gapi.client.setToken({ access_token: response.access_token });
                 }
-                
                 createPicker(response.access_token);
             },
         });
-        
         if (gapi.client.getToken() === null) {
             tokenClient.requestAccessToken({prompt: 'consent'});
         } else {
@@ -368,7 +393,6 @@ function handleGoogleDriveClick() {
 function createPicker(accessToken) {
     const view = new google.picker.View(google.picker.ViewId.SPREADSHEETS);
     view.setMimeTypes("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel");
-    
     const picker = new google.picker.PickerBuilder()
         .addView(view)
         .setOAuthToken(accessToken)
@@ -383,28 +407,21 @@ async function pickerCallback(data) {
     if (data.action === google.picker.Action.PICKED) {
         const fileId = data.docs[0].id;
         const fileName = data.docs[0].name;
-        
         try {
             const response = await gapi.client.drive.files.get({
                 fileId: fileId,
                 alt: 'media',
             }, { responseType: 'arraybuffer' });
-            
             let bytes;
             const raw = response.body || response.result;
-
             if (typeof raw === 'string') {
                 const len = raw.length;
                 bytes = new Uint8Array(len);
-                for (let i = 0; i < len; i++) {
-                    bytes[i] = raw.charCodeAt(i);
-                }
+                for (let i = 0; i < len; i++) bytes[i] = raw.charCodeAt(i);
             } else {
                 bytes = new Uint8Array(raw);
             }
-            
             processWorkbook(bytes, fileName);
-
         } catch (err) {
             console.error("Erro ao baixar do Drive:", err);
             alert(`Erro ao baixar ficheiro: ${err.message || 'Verifique a consola'}`);
@@ -412,12 +429,9 @@ async function pickerCallback(data) {
     }
 }
 
-// --- Lógica de Ficheiros Unificada ---
-
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
-    
     const reader = new FileReader();
     reader.onload = (evt) => {
         const data = new Uint8Array(evt.target.result);
@@ -430,24 +444,18 @@ function processWorkbook(data, fileName) {
     try {
         const workbook = XLSX.read(data, {type: 'array'});
         const sheetNames = workbook.SheetNames;
-        
         tempRoster = { players: [], officials: [] };
-        
         const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
         let jogadoresSheetName = sheetNames[0];
-        
         if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
             jogadoresSheetName = sheetNames[1];
         }
-
-        // 1. Ler Jogadores
         if (jogadoresSheetName) {
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
             json.forEach(row => {
                 const num = row.Numero ? String(row.Numero).trim() : '';
                 const nome = row.Nome || '';
                 const pos = row.Posicao || '';
-                
                 if (!oficiaisSheetName) {
                     const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
                     if (isOfficial) {
@@ -460,8 +468,6 @@ function processWorkbook(data, fileName) {
                 }
             });
         }
-
-        // 2. Ler Oficiais
         if (oficiaisSheetName) {
             const jsonOff = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
             jsonOff.forEach(row => {
@@ -471,20 +477,16 @@ function processWorkbook(data, fileName) {
                 } else if (row.Numero) {
                     id = String(row.Numero).trim();
                 }
-                
                 const nome = row.Nome || '';
                 const cargo = 'Oficial'; 
-                
                 tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: cargo });
             });
         }
-
         if(document.getElementById('file-name-A')) {
             document.getElementById('file-name-A').textContent = fileName;
         }
         renderRosterEdit();
         els.rosterModal.classList.remove('hidden');
-
     } catch (err) {
         console.error("Erro ao processar workbook", err);
         alert("Ficheiro inválido ou corrompido.");
@@ -494,7 +496,6 @@ function processWorkbook(data, fileName) {
 function renderRosterEdit() {
     els.rosterPlayersBody.innerHTML = '';
     els.rosterOfficialsBody.innerHTML = '';
-
     tempRoster.players.forEach((p, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -505,7 +506,6 @@ function renderRosterEdit() {
         `;
         els.rosterPlayersBody.appendChild(tr);
     });
-
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -542,12 +542,10 @@ function saveRosterFromModal() {
         sanctions: { yellow: 0, twoMin: 0, red: 0 },
         positiveActions: [], negativeActions: []
     }));
-
     const finalOfficials = tempRoster.officials.filter(o => o.Nome).map(o => ({
         ...o,
         sanctions: { yellow: 0, twoMin: 0, red: 0 }
     }));
-
     store.loadPlayers(finalPlayers, finalOfficials);
 }
 
@@ -569,7 +567,6 @@ function initUI() {
 function renderOfficials() {
     if (!els.officialsListA) return;
     els.officialsListA.innerHTML = '';
-    
     store.state.gameData.A.officials.forEach(off => {
         const div = document.createElement('div');
         div.className = 'flex justify-between items-center p-2 mb-1 rounded-lg bg-gray-800 text-sm';
@@ -590,17 +587,14 @@ function renderPlayers() {
     const list = document.getElementById('player-list-A');
     const gkList = document.getElementById('goalkeeper-list-A');
     if(!list || !gkList) return;
-    
     list.innerHTML = '';
     gkList.innerHTML = '';
-    
     store.state.gameData.A.players.forEach(p => {
         const div = document.createElement('div');
         const isSuspended = p.isSuspended;
         div.className = `flex justify-between items-center p-2 mb-1 rounded-lg text-sm 
             ${p.onCourt ? 'bg-green-900 border-l-4 border-green-500' : 'bg-gray-700'}
             ${isSuspended ? 'opacity-50' : ''}`;
-        
         div.innerHTML = `
             <div class="flex items-center gap-2 w-1/3">
                 <span class="font-bold text-gray-400 w-6">${p.Numero}</span>
@@ -608,7 +602,6 @@ function renderPlayers() {
                 ${p.sanctions.yellow > 0 ? '<span class="text-yellow-400">▮</span>' : ''}
                 ${p.sanctions.twoMin > 0 ? '<span class="text-red-400">✌️</span>' : ''}
             </div>
-            
             <div class="flex items-center justify-end gap-1 w-2/3">
                 <span id="time-p-${p.Numero}" class="text-xs font-mono text-gray-300 mr-1">${formatTime(p.timeOnCourt)}</span>
                 <span class="text-xs font-mono text-yellow-500 mr-2">PTS:${p.performanceScore || 0}</span>
@@ -632,9 +625,7 @@ window.togglePlayer = (num) => {
     const baseLimit = (duration === 25) ? 6 : 7;
     const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
     const currentLimit = baseLimit - suspendedCount;
-
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
-    
     if (player) {
         if (player.isSuspended) {
             alert("O jogador está suspenso e não pode entrar em campo agora.");
@@ -648,7 +639,6 @@ window.togglePlayer = (num) => {
             }
         }
     }
-
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
         if(p && !p.isSuspended) p.onCourt = !p.onCourt;
@@ -670,18 +660,15 @@ window.openModal = (type, num) => {
         const name = p ? p.Nome : '';
         document.getElementById('shotPlayerName').textContent = name;
     }
-
     document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     els.shotZoneContainer.classList.add('hidden');
     els.shotOutcomeContainer.classList.add('hidden');
     els.shotGoalContainer.classList.add('hidden'); 
     els.shotMarker.classList.add('hidden'); 
-    
     currentShotType = null;
     currentShotZone = null;
     currentShotCoords = null;
-
     if(type === 'shot') els.shotModal.classList.remove('hidden');
     else if(type === 'sanction') els.sanctionsModal.classList.remove('hidden');
     else if(type === 'positive') els.positiveModal.classList.remove('hidden');
@@ -711,7 +698,6 @@ function handleShotOutcome(outcome) {
         const typeKey = currentShotType || 'Default';
         const zoneKey = currentShotZone || '0';
         const coords = currentShotCoords || { x: 0, y: 0 }; 
-        
         if (currentPersonForAction === 'OPPONENT') {
             if (outcome === 'goal') {
                 s.gameData.B.stats.goals++;
@@ -730,18 +716,14 @@ function handleShotOutcome(outcome) {
         } else {
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
-
             if(outcome === 'goal') { p.goals++; s.gameData.A.stats.goals++; }
             if(outcome === 'miss') s.gameData.A.stats.misses++;
             if(outcome === 'saved') s.gameData.A.stats.savedShots++;
-
             const outcomeKey = outcome === 'goal' ? 'goal' : 'fail';
             const points = POINT_SYSTEM.field_player.shot[typeKey]?.[outcomeKey] || 0;
             p.performanceScore = (p.performanceScore || 0) + points;
-
             if (!p.history) p.history = [];
             p.history.push({ type: typeKey, zone: zoneKey, coords, outcome, time: s.totalSeconds });
-
             logGameEvent(s, 'A', 'shot', `${p.Nome}: ${outcome} (${typeKey}, Z${zoneKey})`);
         }
     });
@@ -754,19 +736,14 @@ function updateStatsTab() {
     const statsB = store.state.gameData.B.stats;
     const teamA = store.state.teamAName;
     const teamB = store.state.teamBName;
-
     const totalShotsA = statsA.goals + statsA.misses + statsA.savedShots;
     const totalShotsB = statsB.goals + statsB.misses + statsB.savedShots;
-    
     const effA = totalShotsA > 0 ? ((statsA.goals / totalShotsA) * 100).toFixed(0) : 0;
     const effB = totalShotsB > 0 ? ((statsB.goals / totalShotsB) * 100).toFixed(0) : 0;
-
     const gkEffA = (statsA.gkSaves + statsA.gkGoalsAgainst) > 0 
         ? ((statsA.gkSaves / (statsA.gkSaves + statsA.gkGoalsAgainst)) * 100).toFixed(0) : 0;
-    
     const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
         ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
-
     const rows = [
         { label: "Golos", valA: statsA.goals, valB: statsB.goals },
         { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
@@ -774,7 +751,6 @@ function updateStatsTab() {
         { label: "Faltas Técnicas", valA: store.state.gameData.A.stats.technical_faults, valB: statsB.technical_faults },
         { label: "Perdas de Bola", valA: statsA.turnovers, valB: statsB.turnovers }
     ];
-
     let html = '';
     rows.forEach(row => {
         html += `
@@ -785,7 +761,6 @@ function updateStatsTab() {
             </div>
         `;
     });
-    
     const header = `
         <div class="grid grid-cols-3 text-center mb-4 border-b border-gray-600 pb-2">
             <div class="font-bold text-white truncate px-2 text-lg">${teamA}</div>
@@ -793,14 +768,12 @@ function updateStatsTab() {
             <div class="font-bold text-white truncate px-2 text-lg">${teamB}</div>
         </div>
     `;
-
     els.statsComparisonContainer.innerHTML = header + html;
 }
 
 function updateHeatmapTab() {
     els.heatmapPointsAttack.innerHTML = '';
     els.heatmapPointsDefense.innerHTML = '';
-
     store.state.gameData.A.players.forEach(p => {
         if (p.history) {
             p.history.forEach(shot => {
@@ -808,7 +781,6 @@ function updateHeatmapTab() {
             });
         }
     });
-
     if (store.state.gameData.B.history) {
         store.state.gameData.B.history.forEach(shot => {
             drawDot(els.heatmapPointsDefense, shot);
@@ -818,20 +790,16 @@ function updateHeatmapTab() {
 
 function drawDot(container, shot) {
     if (!shot.coords || !shot.coords.x) return;
-
     const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
     circle.setAttribute("cx", (shot.coords.x / 100) * 300);
     circle.setAttribute("cy", (shot.coords.y / 100) * 200);
     circle.setAttribute("r", 5);
-    
     if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
     else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
     else circle.setAttribute("fill", "#ef4444");
-
     circle.setAttribute("stroke", "white");
     circle.setAttribute("stroke-width", "1");
     circle.setAttribute("opacity", "0.9");
-    
     container.appendChild(circle);
 }
 
@@ -859,7 +827,6 @@ function handleSanctionOutcome(type) {
         } else {
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
-
             if (type === 'yellow') p.sanctions.yellow++;
             if (type === 'red') { 
                 p.sanctions.red++; 
@@ -891,10 +858,8 @@ function handleGenericAction(action, type) {
         } else {
             const p = s.gameData.A.players.find(pl => pl.Numero == currentPersonForAction);
             if(!p) return;
-
             const points = POINT_SYSTEM.field_player[`${type}_actions`][action] || 0;
             p.performanceScore = (p.performanceScore || 0) + points;
-
             if(type === 'negative') {
                 p.negativeActions.push({ action, time: s.totalSeconds });
                 if(action === 'technical_fault') s.gameData.A.stats.technical_faults++;
@@ -911,9 +876,7 @@ function handleGenericAction(action, type) {
 
 function checkTimeEvents(totalSeconds) {
     if (!store.state.isRunning) return;
-
     const halfDurationSeconds = store.state.halfDuration * 60; 
-    
     if (store.state.currentGamePart === 1 && totalSeconds >= halfDurationSeconds) {
         timer.pause(totalSeconds);
         store.update(s => {
@@ -924,7 +887,6 @@ function checkTimeEvents(totalSeconds) {
         if(els.editTimerBtn) els.editTimerBtn.disabled = false; 
         return; 
     }
-
     if (store.state.currentGamePart === 2 && totalSeconds >= halfDurationSeconds * 2) {
         timer.pause(totalSeconds);
         store.update(s => {
@@ -934,7 +896,6 @@ function checkTimeEvents(totalSeconds) {
         if(els.editTimerBtn) els.editTimerBtn.disabled = false; 
         return;
     }
-
     let needsUpdate = false;
     store.state.gameData.A.players.forEach(p => {
         if (p.isSuspended && p.suspensionTimer > 0) {
@@ -949,7 +910,6 @@ function checkTimeEvents(totalSeconds) {
         if(store.state.gameData.B.suspensionTimer <= 0) store.state.gameData.B.isSuspended = false;
         needsUpdate = true;
     }
-
     if(needsUpdate) updateSuspensionsDisplay();
 }
 
@@ -992,7 +952,6 @@ function updateTeamStats() {
     const totalShots = statsA.goals + statsA.misses + statsA.savedShots;
     const techFaults = store.state.gameData.A.players.reduce((acc, p) => 
         acc + (p.negativeActions ? p.negativeActions.filter(a => a.action === 'technical_fault').length : 0), 0);
-
     if(els.shotsA) els.shotsA.textContent = totalShots;
     if(els.savesA) els.savesA.textContent = statsA.gkSaves;
     if(els.techFaultsA) els.techFaultsA.textContent = techFaults;
