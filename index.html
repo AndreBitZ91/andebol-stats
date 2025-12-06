@@ -11,10 +11,6 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.23/jspdf.plugin.autotable.min.js"></script>
     <script src="https://d3js.org/d3.v7.min.js"></script>
     
-    <!-- Bibliotecas Google Drive API -->
-    <script async defer src="https://apis.google.com/js/api.js"></script>
-    <script async defer src="https://accounts.google.com/gsi/client"></script>
-
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/style.css">
 </head>
@@ -49,12 +45,7 @@
                             <span>📁</span> Carregar Ficheiro Local (.xlsx)
                         </label>
                     </div>
-                    <div>
-                        <button id="googleDriveBtn" class="w-full block bg-white hover:bg-gray-100 text-gray-800 font-bold py-3 px-4 rounded-lg transition flex items-center justify-center gap-2">
-                            <img src="https://upload.wikimedia.org/wikipedia/commons/1/12/Google_Drive_icon_%282020%29.svg" class="w-5 h-5" alt="Drive">
-                            Carregar do Google Drive
-                        </button>
-                    </div>
+                    
                     <p id="file-name-A" class="text-sm text-gray-500 h-5 truncate">Nenhum ficheiro selecionado</p>
                 </div>
 
@@ -170,11 +161,13 @@
         <div id="tab-heatmap" class="tab-content hidden">
             <div class="bg-gray-800 p-4 md:p-6 rounded-2xl shadow-lg">
                 <h3 class="text-2xl font-bold text-center mb-6 text-white">Mapa de Remates</h3>
+                
                 <div class="flex justify-center gap-6 text-sm mb-6 bg-gray-900 p-2 rounded-lg">
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-green-500 mr-2"></span> Golo</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-blue-500 mr-2"></span> Defesa</div>
                     <div class="flex items-center"><span class="w-3 h-3 rounded-full bg-red-500 mr-2"></span> Fora</div>
                 </div>
+
                 <div class="grid md:grid-cols-2 gap-8">
                     <div class="flex flex-col items-center">
                         <h4 class="text-blue-400 font-bold text-lg mb-2">ATAQUE (Nossos Remates)</h4>
@@ -356,7 +349,6 @@
         </div>
     </div>
 
-    <!-- Script principal com detetor de erro -->
-    <script type="module" src="js/main.js" onerror="alert('Erro ao carregar js/main.js! Verifique se os ficheiros existem no GitHub na pasta js/')"></script>
+    <script type="module" src="js/main.js"></script>
 </body>
 </html>
