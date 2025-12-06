@@ -14,11 +14,13 @@ export class GameStore {
                     players: [], 
                     officials: [], 
                     fileLoaded: false, 
-                    teamYellowCards: 0, 
-                    isTeamSuspended: false, 
+                    teamYellowCards: 0, // Contador Global Amarelos Jogadores
+                    officialsStats: { yellow: 0, twoMin: 0, red: 0 }, // Contador Global Oficiais
+                    
+                    isTeamSuspended: false, // Flag genérica para redução de equipa (ex: banco)
                     teamSuspensionTimer: 0, 
-                    timeouts: { total: 3, part1: 0, part2: 0, taken: [] }, 
-                    officialsSanctions: { yellow: 0, twoMin: 0, red: 0 } 
+                    
+                    timeouts: { total: 3, part1: 0, part2: 0, taken: [] }
                 },
                 B: { 
                     stats: { goals: 0, misses: 0, savedShots: 0, turnovers: 0, technical_faults: 0, transition_goals: 0, gkSaves: 0, gkGoalsAgainst: 0 }, 
@@ -28,7 +30,7 @@ export class GameStore {
                 }
             },
             totalSeconds: 0,
-            halfDuration: 30, // 30 ou 25 minutos (Configurável)
+            halfDuration: 30,
             currentGamePart: 1,
             isPassivePlay: false,
             isOpponent7v6: false,
@@ -81,6 +83,12 @@ export class GameStore {
         if (saved) {
             try {
                 this.state = JSON.parse(saved);
+                
+                // Migração de dados para evitar erros se a estrutura mudou
+                if(!this.state.gameData.A.officialsStats) {
+                    this.state.gameData.A.officialsStats = { yellow: 0, twoMin: 0, red: 0 };
+                }
+
                 return true;
             } catch (e) {
                 console.error("Erro ao ler dados guardados, a reiniciar...", e);
