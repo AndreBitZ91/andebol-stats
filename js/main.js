@@ -1,4 +1,4 @@
-// js/main.js - Versão Robustecida (Apenas Carregamento Local)
+// js/main.js - Versão Robusta (Correção de Leitura de Excel)
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -12,107 +12,129 @@ let currentShotCoords = null;
 let els = {}; 
 let tempRoster = { players: [], officials: [] };
 
-// Função de Arranque (Start)
+// --- Função de Arranque ---
 function startApp() {
     console.log("Aplicação a iniciar...");
+    
+    // 1. Capturar Elementos
     initDOMElements();
 
-    // Timer
+    // 2. Verificar Dependências (XLSX)
+    if (typeof XLSX === 'undefined') {
+        alert("ERRO CRÍTICO: A biblioteca de Excel (SheetJS) não carregou. Verifique a sua ligação à internet.");
+        return;
+    }
+
+    // 3. Configurar Timer
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
         updateDisplay();
         checkTimeEvents(seconds);
     });
 
-    // Recuperar Estado
-    const hasSavedGame = store.loadFromLocalStorage();
-    
-    if (hasSavedGame) {
-        initUI();
-        if (!store.state.isRunning && store.state.totalSeconds > 0) {
-            if(els.editTimerBtn) els.editTimerBtn.disabled = false;
+    // 4. Carregar Estado
+    try {
+        const hasSavedGame = store.loadFromLocalStorage();
+        if (hasSavedGame) {
+            initUI();
+            if (!store.state.isRunning && store.state.totalSeconds > 0) {
+                if(els.editTimerBtn) els.editTimerBtn.disabled = false;
+            }
+            if (timer && !store.state.isRunning) {
+                timer.elapsedPaused = store.state.totalSeconds;
+            }
+            // Inicializar histórico adversário se não existir
+            if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
+        } else {
+            showWelcomeScreen();
         }
-        if (timer && !store.state.isRunning) {
-            timer.elapsedPaused = store.state.totalSeconds;
-        }
-        if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
-    } else {
+    } catch (e) {
+        console.error("Erro ao carregar estado:", e);
         showWelcomeScreen();
     }
 
+    // 5. Ligar Eventos
     setupEventListeners();
 }
 
-// DETETOR DE DOMContentLoaded (Resolve o problema de carregamento)
+// Detetor de Carregamento Seguro
 if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', startApp);
 } else {
-    // Se já carregou, arranca imediatamente
     startApp();
 }
 
 function initDOMElements() {
+    // Captura segura com fallback para evitar crashes se um ID mudar
+    const getEl = (id) => document.getElementById(id);
+
     els = {
-        welcomeModal: document.getElementById('welcomeModal'),
-        mainApp: document.getElementById('main-app'),
-        timerDisplay: document.getElementById('timer'),
-        scoreA: document.getElementById('scoreA'),
-        scoreB: document.getElementById('scoreB'),
-        suspensionContainer: document.getElementById('suspension-container'),
-        timelineList: document.getElementById('timeline-list'),
-        shotModal: document.getElementById('shotModal'),
-        sanctionsModal: document.getElementById('sanctionsModal'),
-        positiveModal: document.getElementById('positiveActionModal'),
-        negativeModal: document.getElementById('negativeActionModal'),
-        effA: document.getElementById('effA'),
-        shotsA: document.getElementById('shotsA'),
-        savesA: document.getElementById('savesA'),
-        techFaultsA: document.getElementById('techFaultsA'),
-        welcomeFileInput: document.getElementById('welcome-file-input-A'),
-        welcomeTeamBName: document.getElementById('welcome-team-b-name'),
-        startGameBtn: document.getElementById('startGameBtn'),
-        teamAName: document.getElementById('teamAName'),
-        teamBName: document.getElementById('teamBName'),
+        welcomeModal: getEl('welcomeModal'),
+        mainApp: getEl('main-app'),
+        timerDisplay: getEl('timer'),
+        scoreA: getEl('scoreA'),
+        scoreB: getEl('scoreB'),
+        suspensionContainer: getEl('suspension-container'),
+        timelineList: getEl('timeline-list'),
+        shotModal: getEl('shotModal'),
+        sanctionsModal: getEl('sanctionsModal'),
+        positiveModal: getEl('positiveActionModal'),
+        negativeModal: getEl('negativeActionModal'),
+        effA: getEl('effA'),
+        shotsA: getEl('shotsA'),
+        savesA: getEl('savesA'),
+        techFaultsA: getEl('techFaultsA'),
+        welcomeFileInput: getEl('welcome-file-input-A'),
+        welcomeTeamBName: getEl('welcome-team-b-name'),
+        startGameBtn: getEl('startGameBtn'),
+        teamAName: getEl('teamAName'),
+        teamBName: getEl('teamBName'),
         
-        editTimerBtn: document.getElementById('editTimerBtn'),
-        correctionModal: document.getElementById('correctionModal'),
-        correctMin: document.getElementById('correctMin'),
-        correctSec: document.getElementById('correctSec'),
-        saveCorrectionBtn: document.getElementById('saveCorrectionBtn'),
-        closeCorrectionBtn: document.getElementById('closeCorrectionBtn'),
+        editTimerBtn: getEl('editTimerBtn'),
+        correctionModal: getEl('correctionModal'),
+        correctMin: getEl('correctMin'),
+        correctSec: getEl('correctSec'),
+        saveCorrectionBtn: getEl('saveCorrectionBtn'),
+        closeCorrectionBtn: getEl('closeCorrectionBtn'),
 
-        shotZoneContainer: document.getElementById('shotZoneContainer'),
-        shotGoalContainer: document.getElementById('shotGoalContainer'),
-        shotOutcomeContainer: document.getElementById('shotOutcomeContainer'),
-        goalSvg: document.getElementById('goalSvg'),
-        shotMarker: document.getElementById('shotMarker'),
+        shotZoneContainer: getEl('shotZoneContainer'),
+        shotGoalContainer: getEl('shotGoalContainer'),
+        shotOutcomeContainer: getEl('shotOutcomeContainer'),
+        goalSvg: getEl('goalSvg'),
+        shotMarker: getEl('shotMarker'),
 
-        tabData: document.getElementById('tab-data'),
-        tabStats: document.getElementById('tab-stats'),
-        tabHeatmap: document.getElementById('tab-heatmap'),
-        statsComparisonContainer: document.getElementById('stats-comparison-container'),
-        heatmapPointsAttack: document.getElementById('heatmap-points-attack'),
-        heatmapPointsDefense: document.getElementById('heatmap-points-defense'),
-        btnHeatmapUs: document.getElementById('btn-heatmap-us'),
-        btnHeatmapThem: document.getElementById('btn-heatmap-them'),
+        tabData: getEl('tab-data'),
+        tabStats: getEl('tab-stats'),
+        tabHeatmap: getEl('tab-heatmap'),
+        statsComparisonContainer: getEl('stats-comparison-container'),
+        heatmapPointsAttack: getEl('heatmap-points-attack'),
+        heatmapPointsDefense: getEl('heatmap-points-defense'),
+        btnHeatmapUs: getEl('btn-heatmap-us'),
+        btnHeatmapThem: getEl('btn-heatmap-them'),
 
-        rosterModal: document.getElementById('rosterModal'),
-        rosterPlayersBody: document.getElementById('roster-players-body'),
-        rosterOfficialsBody: document.getElementById('roster-officials-body'),
-        addPlayerBtn: document.getElementById('addPlayerBtn'),
-        addOfficialBtn: document.getElementById('addOfficialBtn'),
-        cancelRosterBtn: document.getElementById('cancelRosterBtn'),
-        confirmRosterBtn: document.getElementById('confirmRosterBtn'),
-        closeRosterBtn: document.getElementById('closeRosterBtn'),
-        officialsListA: document.getElementById('officials-list-A')
+        rosterModal: getEl('rosterModal'),
+        rosterPlayersBody: getEl('roster-players-body'),
+        rosterOfficialsBody: getEl('roster-officials-body'),
+        addPlayerBtn: getEl('addPlayerBtn'),
+        addOfficialBtn: getEl('addOfficialBtn'),
+        cancelRosterBtn: getEl('cancelRosterBtn'),
+        confirmRosterBtn: getEl('confirmRosterBtn'),
+        closeRosterBtn: getEl('closeRosterBtn'),
+        officialsListA: getEl('officials-list-A')
     };
 }
 
 function setupEventListeners() {
-    // Verificação de segurança para evitar erros se o elemento não existir
-    if(els.welcomeFileInput) els.welcomeFileInput.addEventListener('change', handleFileSelect);
+    // --- Evento de Ficheiro (CRÍTICO) ---
+    if(els.welcomeFileInput) {
+        els.welcomeFileInput.addEventListener('change', handleFileSelect);
+    } else {
+        console.error("Erro: Input de ficheiro não encontrado no HTML");
+    }
+
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
     
+    // Gestão de Plantel
     if(els.addPlayerBtn) els.addPlayerBtn.addEventListener('click', () => addRosterRow('player'));
     if(els.addOfficialBtn) els.addOfficialBtn.addEventListener('click', () => addRosterRow('official'));
     if(els.cancelRosterBtn) els.cancelRosterBtn.addEventListener('click', () => els.rosterModal.classList.add('hidden'));
@@ -138,6 +160,7 @@ function setupEventListeners() {
         });
     }
 
+    // Abas
     document.querySelectorAll('.tab-link').forEach(btn => {
         btn.addEventListener('click', (e) => {
             document.querySelectorAll('.tab-link').forEach(b => {
@@ -150,14 +173,16 @@ function setupEventListeners() {
 
             const tabName = clicked.dataset.tab;
             document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            const targetTab = document.getElementById(`tab-${tabName}`);
+            if(targetTab) targetTab.classList.remove('hidden');
 
             if (tabName === 'stats') updateStatsTab();
             if (tabName === 'heatmap') updateHeatmapTab();
         });
     });
 
-    document.getElementById('startBtn')?.addEventListener('click', () => { 
+    // Controlos de Jogo
+    if(document.getElementById('startBtn')) document.getElementById('startBtn').addEventListener('click', () => { 
         const playersOnCourt = store.state.gameData.A.players.filter(p => p.onCourt).length;
         const duration = store.state.halfDuration || 30; 
         const baseRequired = (duration === 25) ? 6 : 7;
@@ -173,7 +198,7 @@ function setupEventListeners() {
         if(els.editTimerBtn) els.editTimerBtn.disabled = true;
     });
 
-    document.getElementById('pauseBtn')?.addEventListener('click', () => { 
+    if(document.getElementById('pauseBtn')) document.getElementById('pauseBtn').addEventListener('click', () => { 
         timer.pause(store.state.totalSeconds); 
         store.update(s => s.isRunning = false); 
         if(els.editTimerBtn) els.editTimerBtn.disabled = false;
@@ -201,7 +226,6 @@ function setupEventListeners() {
                 store.update(s => {
                     s.totalSeconds = newTotalSeconds;
                     
-                    // Atualizar Jogadores
                     s.gameData.A.players.forEach(p => {
                         if (p.onCourt) {
                             p.timeOnCourt = Math.max(0, p.timeOnCourt + diff);
@@ -212,7 +236,6 @@ function setupEventListeners() {
                         }
                     });
 
-                    // Atualizar Suspensão Adversário
                     if (s.gameData.B.isSuspended && s.gameData.B.suspensionTimer > 0) {
                         s.gameData.B.suspensionTimer = Math.max(0, s.gameData.B.suspensionTimer - diff);
                         if (s.gameData.B.suspensionTimer === 0) s.gameData.B.isSuspended = false;
@@ -236,16 +259,16 @@ function setupEventListeners() {
         els.closeCorrectionBtn.addEventListener('click', () => els.correctionModal.classList.add('hidden'));
     }
 
-    document.getElementById('undoBtn')?.addEventListener('click', handleUndo);
-    document.getElementById('exportExcelBtn')?.addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
-    document.getElementById('resetGameBtn')?.addEventListener('click', handleReset);
+    if(document.getElementById('undoBtn')) document.getElementById('undoBtn').addEventListener('click', handleUndo);
+    if(document.getElementById('exportExcelBtn')) document.getElementById('exportExcelBtn').addEventListener('click', () => exportToExcel(store.state.gameData, store.state.gameEvents));
+    if(document.getElementById('resetGameBtn')) document.getElementById('resetGameBtn').addEventListener('click', handleReset);
 
-    document.getElementById('passivePlayBtn')?.addEventListener('click', (e) => {
+    if(document.getElementById('passivePlayBtn')) document.getElementById('passivePlayBtn').addEventListener('click', (e) => {
         store.update(s => s.isPassivePlay = !s.isPassivePlay);
         e.target.classList.toggle('bg-red-600');
         e.target.classList.toggle('bg-gray-700');
     });
-    document.getElementById('opponent7v6Btn')?.addEventListener('click', (e) => {
+    if(document.getElementById('opponent7v6Btn')) document.getElementById('opponent7v6Btn').addEventListener('click', (e) => {
         store.update(s => s.isOpponent7v6 = !s.isOpponent7v6);
         e.target.classList.toggle('bg-orange-600');
         e.target.classList.toggle('bg-gray-700');
@@ -316,23 +339,25 @@ function setupModals() {
     });
 }
 
-// --- LÓGICA FICHEIROS LOCAIS ---
+// --- LÓGICA DE FICHEIROS LOCAIS ---
 
 function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
     
-    // Reset para permitir re-seleção
-    if(document.getElementById('file-name-A')) document.getElementById('file-name-A').textContent = file.name;
-    
+    // Feedback visual imediato
+    if(document.getElementById('file-name-A')) {
+        document.getElementById('file-name-A').textContent = file.name;
+    }
+
     const reader = new FileReader();
     reader.onload = (evt) => {
         try {
             const data = new Uint8Array(evt.target.result);
             processWorkbook(data, file.name);
         } catch (err) {
-            console.error(err);
-            alert("Erro ao processar ficheiro.");
+            console.error("Erro no processamento:", err);
+            alert("Erro ao processar ficheiro Excel. Verifique o formato.");
         }
     };
     reader.onerror = (err) => {
@@ -341,26 +366,37 @@ function handleFileSelect(e) {
     };
     reader.readAsArrayBuffer(file);
     
-    // Reset para permitir carregar o mesmo ficheiro de novo
+    // Reset para permitir recarregar o mesmo ficheiro se falhar
     e.target.value = ''; 
 }
 
 function processWorkbook(data, fileName) {
+    if (typeof XLSX === 'undefined') {
+        alert("Erro: Biblioteca XLSX não encontrada. Recarregue a página.");
+        return;
+    }
+
     try {
         const workbook = XLSX.read(data, {type: 'array'});
         const sheetNames = workbook.SheetNames;
+        
         tempRoster = { players: [], officials: [] };
+        
         const oficiaisSheetName = sheetNames.find(name => name.toLowerCase().includes('oficiais') || name.toLowerCase().includes('officials'));
         let jogadoresSheetName = sheetNames[0];
+        
         if (oficiaisSheetName && jogadoresSheetName === oficiaisSheetName && sheetNames.length > 1) {
             jogadoresSheetName = sheetNames[1];
         }
+
+        // 1. Ler Jogadores
         if (jogadoresSheetName) {
             const json = XLSX.utils.sheet_to_json(workbook.Sheets[jogadoresSheetName]);
             json.forEach(row => {
                 const num = row.Numero ? String(row.Numero).trim() : '';
                 const nome = row.Nome || '';
                 const pos = row.Posicao || '';
+                
                 if (!oficiaisSheetName) {
                     const isOfficial = num.match(/^[A-Z]$/i) || (pos && (pos.toLowerCase().includes('treinador') || pos.toLowerCase().includes('oficial')));
                     if (isOfficial) {
@@ -373,31 +409,41 @@ function processWorkbook(data, fileName) {
                 }
             });
         }
+
+        // 2. Ler Oficiais
         if (oficiaisSheetName) {
             const jsonOff = XLSX.utils.sheet_to_json(workbook.Sheets[oficiaisSheetName]);
             jsonOff.forEach(row => {
                 let id = '';
-                if (row.Posicao && String(row.Posicao).trim().length <= 2) id = String(row.Posicao).trim(); 
-                else if (row.Numero) id = String(row.Numero).trim();
+                if (row.Posicao && String(row.Posicao).trim().length <= 2) {
+                    id = String(row.Posicao).trim(); 
+                } else if (row.Numero) {
+                    id = String(row.Numero).trim();
+                }
+                
                 const nome = row.Nome || '';
                 const cargo = 'Oficial'; 
+                
                 tempRoster.officials.push({ Numero: id, Nome: nome, Posicao: cargo });
             });
         }
-        if(document.getElementById('file-name-A')) {
-            document.getElementById('file-name-A').textContent = fileName;
-        }
+
+        // Sucesso: Mostrar Modal
         renderRosterEdit();
-        els.rosterModal.classList.remove('hidden');
+        if(els.rosterModal) els.rosterModal.classList.remove('hidden');
+
     } catch (err) {
-        console.error("Erro workbook:", err);
-        alert("Ficheiro inválido.");
+        console.error("Erro na leitura do workbook:", err);
+        alert("Ficheiro inválido ou corrompido.");
     }
 }
 
 function renderRosterEdit() {
+    if(!els.rosterPlayersBody || !els.rosterOfficialsBody) return;
+    
     els.rosterPlayersBody.innerHTML = '';
     els.rosterOfficialsBody.innerHTML = '';
+
     tempRoster.players.forEach((p, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -408,6 +454,7 @@ function renderRosterEdit() {
         `;
         els.rosterPlayersBody.appendChild(tr);
     });
+
     tempRoster.officials.forEach((o, index) => {
         const tr = document.createElement('tr');
         tr.innerHTML = `
@@ -420,6 +467,7 @@ function renderRosterEdit() {
     });
 }
 
+// Funções Globais (Window Scope)
 window.addRosterRow = (type) => {
     if (type === 'player') tempRoster.players.push({ Numero: '', Nome: '', Posicao: '' });
     else tempRoster.officials.push({ Numero: '', Nome: '', Posicao: '' });
@@ -444,10 +492,12 @@ function saveRosterFromModal() {
         sanctions: { yellow: 0, twoMin: 0, red: 0 },
         positiveActions: [], negativeActions: []
     }));
+
     const finalOfficials = tempRoster.officials.filter(o => o.Nome).map(o => ({
         ...o,
         sanctions: { yellow: 0, twoMin: 0, red: 0 }
     }));
+
     store.loadPlayers(finalPlayers, finalOfficials);
 }
 
@@ -469,6 +519,7 @@ function initUI() {
 function renderOfficials() {
     if (!els.officialsListA) return;
     els.officialsListA.innerHTML = '';
+    
     store.state.gameData.A.officials.forEach(off => {
         const div = document.createElement('div');
         div.className = 'flex justify-between items-center p-2 mb-1 rounded-lg bg-gray-800 text-sm';
@@ -489,14 +540,17 @@ function renderPlayers() {
     const list = document.getElementById('player-list-A');
     const gkList = document.getElementById('goalkeeper-list-A');
     if(!list || !gkList) return;
+    
     list.innerHTML = '';
     gkList.innerHTML = '';
+    
     store.state.gameData.A.players.forEach(p => {
         const div = document.createElement('div');
         const isSuspended = p.isSuspended;
         div.className = `flex justify-between items-center p-2 mb-1 rounded-lg text-sm 
             ${p.onCourt ? 'bg-green-900 border-l-4 border-green-500' : 'bg-gray-700'}
             ${isSuspended ? 'opacity-50' : ''}`;
+        
         div.innerHTML = `
             <div class="flex items-center gap-2 w-1/3">
                 <span class="font-bold text-gray-400 w-6">${p.Numero}</span>
@@ -504,6 +558,7 @@ function renderPlayers() {
                 ${p.sanctions.yellow > 0 ? '<span class="text-yellow-400">▮</span>' : ''}
                 ${p.sanctions.twoMin > 0 ? '<span class="text-red-400">✌️</span>' : ''}
             </div>
+            
             <div class="flex items-center justify-end gap-1 w-2/3">
                 <span id="time-p-${p.Numero}" class="text-xs font-mono text-gray-300 mr-1">${formatTime(p.timeOnCourt)}</span>
                 <span class="text-xs font-mono text-yellow-500 mr-2">PTS:${p.performanceScore || 0}</span>
@@ -521,6 +576,10 @@ function renderPlayers() {
     });
     renderOfficials();
 }
+
+// ... Resto das funções (Toggle, Modais, Handlers, etc) são idênticas ...
+// Assegurar que são copiadas todas as funções auxiliares que já existiam
+// (Como handleUndo, formatTime, logGameEvent, etc)
 
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; 
@@ -806,4 +865,89 @@ function renderTimeline() {
         div.innerHTML = `<span class="font-mono text-gray-500">${formatTime(e.time)}</span> ${e.details}`;
         list.appendChild(div);
     });
+}
+
+function updateHeatmapTab() {
+    els.heatmapPointsAttack.innerHTML = '';
+    els.heatmapPointsDefense.innerHTML = '';
+    store.state.gameData.A.players.forEach(p => {
+        if (p.history) {
+            p.history.forEach(shot => {
+                drawDot(els.heatmapPointsAttack, shot);
+            });
+        }
+    });
+    if (store.state.gameData.B.history) {
+        store.state.gameData.B.history.forEach(shot => {
+            drawDot(els.heatmapPointsDefense, shot);
+        });
+    }
+}
+
+function drawDot(container, shot) {
+    if (!shot.coords || !shot.coords.x) return;
+    const circle = document.createElementNS("http://www.w3.org/2000/svg", "circle");
+    circle.setAttribute("cx", (shot.coords.x / 100) * 300);
+    circle.setAttribute("cy", (shot.coords.y / 100) * 200);
+    circle.setAttribute("r", 5);
+    if (shot.outcome === 'goal') circle.setAttribute("fill", "#22c55e");
+    else if (shot.outcome === 'saved') circle.setAttribute("fill", "#3b82f6");
+    else circle.setAttribute("fill", "#ef4444");
+    circle.setAttribute("stroke", "white");
+    circle.setAttribute("stroke-width", "1");
+    circle.setAttribute("opacity", "0.9");
+    container.appendChild(circle);
+}
+
+function handleReset() {
+    const confirmacao = confirm("Tem a certeza que quer iniciar um Novo Jogo?\n\nTodos os dados da sessão atual serão apagados e voltará ao menu inicial.");
+    if (confirmacao) {
+        sessionStorage.clear(); 
+        window.location.reload();
+    }
+}
+
+function showWelcomeScreen() {
+    if(els.welcomeModal) els.welcomeModal.classList.remove('hidden');
+    if(els.mainApp) els.mainApp.classList.add('hidden');
+}
+
+function updateStatsTab() {
+    const statsA = store.state.gameData.A.stats;
+    const statsB = store.state.gameData.B.stats;
+    const teamA = store.state.teamAName;
+    const teamB = store.state.teamBName;
+    const totalShotsA = statsA.goals + statsA.misses + statsA.savedShots;
+    const totalShotsB = statsB.goals + statsB.misses + statsB.savedShots;
+    const effA = totalShotsA > 0 ? ((statsA.goals / totalShotsA) * 100).toFixed(0) : 0;
+    const effB = totalShotsB > 0 ? ((statsB.goals / totalShotsB) * 100).toFixed(0) : 0;
+    const gkEffA = (statsA.gkSaves + statsA.gkGoalsAgainst) > 0 
+        ? ((statsA.gkSaves / (statsA.gkSaves + statsA.gkGoalsAgainst)) * 100).toFixed(0) : 0;
+    const gkEffB = (statsB.gkSaves + statsB.gkGoalsAgainst) > 0 
+        ? ((statsB.gkSaves / (statsB.gkSaves + statsB.gkGoalsAgainst)) * 100).toFixed(0) : 0;
+    const rows = [
+        { label: "Golos", valA: statsA.goals, valB: statsB.goals },
+        { label: "Eficácia Remate", valA: `${effA}%`, valB: `${effB}%` },
+        { label: "Eficácia GR", valA: `${gkEffA}%`, valB: `${gkEffB}%` },
+        { label: "Faltas Técnicas", valA: store.state.gameData.A.stats.technical_faults, valB: statsB.technical_faults },
+        { label: "Perdas de Bola", valA: statsA.turnovers, valB: statsB.turnovers }
+    ];
+    let html = '';
+    rows.forEach(row => {
+        html += `
+            <div class="grid grid-cols-3 items-center text-center border-b border-gray-700 py-3">
+                <div class="text-xl font-bold text-blue-400">${row.valA}</div>
+                <div class="text-sm text-gray-400 font-medium uppercase tracking-wide">${row.label}</div>
+                <div class="text-xl font-bold text-orange-400">${row.valB}</div>
+            </div>
+        `;
+    });
+    const header = `
+        <div class="grid grid-cols-3 text-center mb-4 border-b border-gray-600 pb-2">
+            <div class="font-bold text-white truncate px-2 text-lg">${teamA}</div>
+            <div></div>
+            <div class="font-bold text-white truncate px-2 text-lg">${teamB}</div>
+        </div>
+    `;
+    els.statsComparisonContainer.innerHTML = header + html;
 }
