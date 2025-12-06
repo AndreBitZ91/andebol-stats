@@ -1,4 +1,4 @@
-// js/main.js - Versão Robusta (Correção de Leitura de Excel)
+// js/main.js - Versão Corrigida (Carregamento de Ficheiros)
 import { store } from './state.js';
 import { GameTimer } from './timer.js';
 import { POINT_SYSTEM } from './constants.js';
@@ -19,20 +19,23 @@ function startApp() {
     // 1. Capturar Elementos
     initDOMElements();
 
-    // 2. Verificar Dependências (XLSX)
+    // 2. Ligar Eventos (PRIORITÁRIO: Garante que os botões reagem)
+    setupEventListeners();
+
+    // 3. Verificar Dependências (Apenas avisa, não bloqueia o resto)
     if (typeof XLSX === 'undefined') {
-        alert("ERRO CRÍTICO: A biblioteca de Excel (SheetJS) não carregou. Verifique a sua ligação à internet.");
-        return;
+        console.warn("A biblioteca XLSX ainda não carregou ou falhou.");
+        // Não fazemos return aqui para não impedir o resto da app de inicializar o possível
     }
 
-    // 3. Configurar Timer
+    // 4. Configurar Timer
     timer = new GameTimer((seconds) => {
         store.state.totalSeconds = seconds;
         updateDisplay();
         checkTimeEvents(seconds);
     });
 
-    // 4. Carregar Estado
+    // 5. Carregar Estado
     try {
         const hasSavedGame = store.loadFromLocalStorage();
         if (hasSavedGame) {
@@ -43,7 +46,6 @@ function startApp() {
             if (timer && !store.state.isRunning) {
                 timer.elapsedPaused = store.state.totalSeconds;
             }
-            // Inicializar histórico adversário se não existir
             if (!store.state.gameData.B.history) store.state.gameData.B.history = [];
         } else {
             showWelcomeScreen();
@@ -52,9 +54,6 @@ function startApp() {
         console.error("Erro ao carregar estado:", e);
         showWelcomeScreen();
     }
-
-    // 5. Ligar Eventos
-    setupEventListeners();
 }
 
 // Detetor de Carregamento Seguro
@@ -65,7 +64,6 @@ if (document.readyState === 'loading') {
 }
 
 function initDOMElements() {
-    // Captura segura com fallback para evitar crashes se um ID mudar
     const getEl = (id) => document.getElementById(id);
 
     els = {
@@ -84,7 +82,8 @@ function initDOMElements() {
         shotsA: getEl('shotsA'),
         savesA: getEl('savesA'),
         techFaultsA: getEl('techFaultsA'),
-        welcomeFileInput: getEl('welcome-file-input-A'),
+        welcomeFileInput: getEl('welcome-file-input-A'), // ID deve corresponder ao HTML
+        fileNameDisplay: getEl('file-name-A'),           // Capturar o elemento de texto do ficheiro
         welcomeTeamBName: getEl('welcome-team-b-name'),
         startGameBtn: getEl('startGameBtn'),
         teamAName: getEl('teamAName'),
@@ -125,11 +124,13 @@ function initDOMElements() {
 }
 
 function setupEventListeners() {
-    // --- Evento de Ficheiro (CRÍTICO) ---
+    // --- Evento de Ficheiro ---
     if(els.welcomeFileInput) {
+        // Remover listener antigo para garantir que não duplica (boa prática)
+        els.welcomeFileInput.removeEventListener('change', handleFileSelect);
         els.welcomeFileInput.addEventListener('change', handleFileSelect);
     } else {
-        console.error("Erro: Input de ficheiro não encontrado no HTML");
+        console.error("Erro Crítico: Input de ficheiro 'welcome-file-input-A' não encontrado.");
     }
 
     if(els.welcomeTeamBName) els.welcomeTeamBName.addEventListener('input', checkStart);
@@ -345,14 +346,21 @@ function handleFileSelect(e) {
     const file = e.target.files[0];
     if(!file) return;
     
+    console.log("Ficheiro detetado:", file.name);
+
     // Feedback visual imediato
-    if(document.getElementById('file-name-A')) {
-        document.getElementById('file-name-A').textContent = file.name;
+    if(els.fileNameDisplay) {
+        els.fileNameDisplay.textContent = file.name;
+        els.fileNameDisplay.classList.remove('text-gray-500');
+        els.fileNameDisplay.classList.add('text-green-400');
+    } else {
+        console.error("Elemento 'file-name-A' não encontrado.");
     }
 
     const reader = new FileReader();
     reader.onload = (evt) => {
         try {
+            console.log("Ficheiro lido. A processar...");
             const data = new Uint8Array(evt.target.result);
             processWorkbook(data, file.name);
         } catch (err) {
@@ -366,13 +374,13 @@ function handleFileSelect(e) {
     };
     reader.readAsArrayBuffer(file);
     
-    // Reset para permitir recarregar o mesmo ficheiro se falhar
+    // Reset para permitir carregar o mesmo ficheiro de novo
     e.target.value = ''; 
 }
 
 function processWorkbook(data, fileName) {
     if (typeof XLSX === 'undefined') {
-        alert("Erro: Biblioteca XLSX não encontrada. Recarregue a página.");
+        alert("ERRO: Biblioteca XLSX não carregou. Verifique a internet e recarregue a página.");
         return;
     }
 
@@ -577,16 +585,17 @@ function renderPlayers() {
     renderOfficials();
 }
 
-// ... Resto das funções (Toggle, Modais, Handlers, etc) são idênticas ...
-// Assegurar que são copiadas todas as funções auxiliares que já existiam
-// (Como handleUndo, formatTime, logGameEvent, etc)
+// ... Resto das funções mantêm-se iguais (Toggle, Modais, Handlers, etc) ...
+// CERTIFICA-TE DE QUE O FICHEIRO TERMINA CORRETAMENTE COM TODAS AS FUNÇÕES AUXILIARES
 
 window.togglePlayer = (num) => {
     const duration = store.state.halfDuration || 30; 
     const baseLimit = (duration === 25) ? 6 : 7;
     const suspendedCount = store.state.gameData.A.players.filter(p => p.isSuspended).length;
     const currentLimit = baseLimit - suspendedCount;
+
     const player = store.state.gameData.A.players.find(pl => pl.Numero == num);
+    
     if (player) {
         if (player.isSuspended) {
             alert("O jogador está suspenso e não pode entrar em campo agora.");
@@ -600,6 +609,7 @@ window.togglePlayer = (num) => {
             }
         }
     }
+
     store.update(s => {
         const p = s.gameData.A.players.find(pl => pl.Numero == num);
         if(p && !p.isSuspended) p.onCourt = !p.onCourt;
@@ -621,15 +631,18 @@ window.openModal = (type, num) => {
         const name = p ? p.Nome : '';
         document.getElementById('shotPlayerName').textContent = name;
     }
+
     document.querySelectorAll('.shot-type-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     document.querySelectorAll('.shot-zone-btn').forEach(b => b.classList.replace('bg-blue-600', 'bg-gray-700'));
     els.shotZoneContainer.classList.add('hidden');
     els.shotOutcomeContainer.classList.add('hidden');
     els.shotGoalContainer.classList.add('hidden'); 
     els.shotMarker.classList.add('hidden'); 
+    
     currentShotType = null;
     currentShotZone = null;
     currentShotCoords = null;
+
     if(type === 'shot') els.shotModal.classList.remove('hidden');
     else if(type === 'sanction') els.sanctionsModal.classList.remove('hidden');
     else if(type === 'positive') els.positiveModal.classList.remove('hidden');
